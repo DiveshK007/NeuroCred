@@ -3,6 +3,7 @@ from typing import Dict
 from web3 import Web3
 import requests
 from models.score import WalletFeatures, ScoreResult
+from services.oracle import QIEOracleService
 
 class ScoringService:
     """AI-powered credit scoring service"""
@@ -11,6 +12,7 @@ class ScoringService:
         self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.explorer_url = os.getenv("QIE_EXPLORER_URL", "https://testnet.qie.digital")
+        self.oracle_service = QIEOracleService()
     
     async def compute_score(self, address: str) -> Dict:
         """Compute credit score for a wallet address"""
@@ -45,23 +47,33 @@ class ScoringService:
             balance = self.w3.eth.get_balance(Web3.to_checksum_address(address))
             balance_eth = self.w3.from_wei(balance, 'ether')
             
-            # Simplified feature extraction
-            # In production, you would:
-            # - Fetch full transaction history from explorer/indexer
-            # - Analyze token holdings
-            # - Calculate volatility from price oracles
-            # - Check for liquidation events
-            # - Analyze stablecoin usage
+            # Feature extraction with QIE Oracle integration
+            # Get price data from QIE Oracles
+            eth_price = await self.oracle_service.get_price('ETH', 'crypto')
+            usdt_price = await self.oracle_service.get_price('USDT', 'crypto')
+            
+            # Calculate volatility from QIE Oracle
+            volatility = await self.oracle_service.get_volatility('ETH', days=30)
+            
+            # Estimate total volume (simplified - in production, analyze all transactions)
+            total_volume = float(balance_eth) * (eth_price if eth_price else 2000)
+            
+            # Estimate stablecoin ratio (simplified - in production, analyze token holdings)
+            # For demo, assume some stablecoin usage if balance is significant
+            stablecoin_ratio = 0.3 if total_volume > 100 else 0.1
+            
+            # Calculate days active (simplified - in production, analyze first/last transaction)
+            days_active = min(30, max(1, tx_count // 2))  # Estimate based on tx count
             
             features = WalletFeatures(
                 tx_count=tx_count,
-                total_volume=float(balance_eth) * 100,  # Simplified
-                stablecoin_ratio=0.5,  # Placeholder
+                total_volume=total_volume,
+                stablecoin_ratio=stablecoin_ratio,
                 avg_tx_value=float(balance_eth) / max(tx_count, 1),
-                days_active=30,  # Placeholder
-                unique_contracts=5,  # Placeholder
-                max_drawdown=0.1,  # Placeholder
-                volatility=0.2  # Placeholder
+                days_active=days_active,
+                unique_contracts=min(10, tx_count // 5),  # Estimate
+                max_drawdown=volatility * 0.5 if volatility else 0.1,  # Estimate from volatility
+                volatility=volatility if volatility else 0.2
             )
             
             return features

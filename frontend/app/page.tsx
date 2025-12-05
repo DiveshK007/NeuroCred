@@ -53,8 +53,13 @@ export default function Home() {
       setRiskBand(data.riskBand);
       setExplanation(data.explanation);
 
-      // Update on-chain
-      await updateOnChain(data.score, data.riskBand);
+      // If txHash is returned, use it (backend automatically updated on-chain)
+      if (data.transactionHash) {
+        setTxHash(data.transactionHash);
+      } else {
+        // Fallback: manually update on-chain if txHash not in response
+        await updateOnChain(data.score, data.riskBand);
+      }
     } catch (error) {
       console.error('Error generating score:', error);
       alert('Failed to generate score. Please try again.');

@@ -34,6 +34,7 @@ class ScoreResponse(BaseModel):
     score: int
     riskBand: int
     explanation: str
+    transactionHash: Optional[str] = None
 
 class UpdateOnChainRequest(BaseModel):
     address: str
@@ -51,14 +52,30 @@ async def root():
 
 @app.post("/api/score", response_model=ScoreResponse)
 async def generate_score(request: ScoreRequest):
-    """Generate credit score for a wallet address"""
+    """Generate credit score for a wallet address and update on-chain"""
     try:
+        # Compute score
         result = await scoring_service.compute_score(request.address)
+        
+        # Automatically update on-chain
+        tx_hash = None
+        try:
+            tx_hash = await blockchain_service.update_score(
+                request.address,
+                result["score"],
+                result["riskBand"]
+            )
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Warning: Failed to update on-chain: {e}")
+            # Continue without tx_hash
+        
         return ScoreResponse(
             address=request.address,
             score=result["score"],
             riskBand=result["riskBand"],
-            explanation=result["explanation"]
+            explanation=result["explanation"],
+            transactionHash=tx_hash
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -74,7 +91,8 @@ async def get_score(address: str):
                 address=address,
                 score=on_chain_score["score"],
                 riskBand=on_chain_score["riskBand"],
-                explanation="Score retrieved from blockchain"
+                explanation="Score retrieved from blockchain",
+                transactionHash=None
             )
         
         # If not on-chain, compute new score
@@ -83,7 +101,8 @@ async def get_score(address: str):
             address=address,
             score=result["score"],
             riskBand=result["riskBand"],
-            explanation=result["explanation"]
+            explanation=result["explanation"],
+            transactionHash=None
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -156,6 +156,122 @@ if (sv.riskBand == 1) {
 
 See `frontend/app/dev/page.tsx` for full integration examples.
 
+## 📡 API Documentation
+
+### Generate Credit Score
+
+**Endpoint:** `POST /api/score`
+
+**Request:**
+```json
+{
+  "address": "0x..."
+}
+```
+
+**Response:**
+```json
+{
+  "address": "0x...",
+  "score": 750,
+  "riskBand": 1,
+  "explanation": "Low risk: High transaction activity, good volume, stable portfolio",
+  "transactionHash": "0x..." // Transaction hash from on-chain update
+}
+```
+
+### Get Score
+
+**Endpoint:** `GET /api/score/{address}`
+
+**Response:**
+```json
+{
+  "address": "0x...",
+  "score": 750,
+  "riskBand": 1,
+  "explanation": "Score retrieved from blockchain"
+}
+```
+
+### Update Score On-Chain
+
+**Endpoint:** `POST /api/update-on-chain`
+
+**Request:**
+```json
+{
+  "address": "0x...",
+  "score": 750,
+  "riskBand": 1
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "transactionHash": "0x...",
+  "message": "Score updated on-chain successfully"
+}
+```
+
+## ✅ Verification Steps
+
+### Verify Contract Deployment
+
+1. Deploy contracts:
+   ```bash
+   cd contracts
+   npm run deploy:testnet
+   ```
+
+2. Verify on explorer:
+   - Visit: `https://testnet.qie.digital/address/[CONTRACT_ADDRESS]`
+   - Check contract code is verified
+   - Verify SCORE_UPDATER_ROLE is set
+
+3. Run verification script:
+   ```bash
+   cd contracts
+   npm run verify:deployment
+   ```
+
+### Verify SCORE_UPDATER_ROLE
+
+Run the verification script:
+```bash
+cd contracts
+npm run verify:role
+```
+
+Or manually check:
+```typescript
+const hasRole = await passportNFT.hasRole(
+  await passportNFT.SCORE_UPDATER_ROLE(),
+  backendWalletAddress
+);
+console.log("Has role:", hasRole); // Should be true
+```
+
+### Verify API Endpoints
+
+Test all endpoints:
+```bash
+# Test score generation
+curl -X POST http://localhost:8000/api/score \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x..."}'
+
+# Test get score
+curl http://localhost:8000/api/score/0x...
+
+# Test on-chain update
+curl -X POST http://localhost:8000/api/update-on-chain \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x...", "score": 750, "riskBand": 1}'
+```
+
 ## 🧪 Testing
 
 ### Contract Tests
@@ -199,10 +315,75 @@ npm test
 - ✅ QIE Oracles integrated
 - ✅ QIEDex integration ready
 
+## 📍 Contract Addresses
+
+### QIE Testnet Deployment
+
+**CreditPassportNFT Contract:**
+```
+Address: [To be deployed - run npm run deploy:testnet]
+Explorer: https://testnet.qie.digital/address/[CONTRACT_ADDRESS]
+```
+
+**NeuroCredStaking Contract (Optional):**
+```
+Address: [To be deployed after NCRD token creation]
+Explorer: https://testnet.qie.digital/address/[STAKING_ADDRESS]
+```
+
+> **Note**: After deployment, update these addresses in your `.env` files and this README.
+
+## 🎬 Demo Video
+
+**Demo Video Link:** [Add your YouTube/Vimeo link here after recording]
+
+The demo video showcases:
+- Problem statement and solution overview
+- Live wallet connection and score generation
+- On-chain transaction verification
+- Developer integration examples
+- Technical architecture walkthrough
+
+> **Recording Guide**: See [docs/demo-script.md](./docs/demo-script.md) for detailed script.
+
+## 📸 Screenshots
+
+### Landing Page
+![Landing Page](./screenshots/landing.png)
+*Clean, modern UI with wallet connection*
+
+### Score Dashboard
+![Score Dashboard](./screenshots/dashboard.png)
+*Credit score visualization with risk band indicator*
+
+### Integration Guide
+![Integration Guide](./screenshots/integration.png)
+*Developer documentation for dApp integration*
+
+> **Note**: Add screenshots to `screenshots/` folder and update paths above.
+
+## 👥 Team
+
+**Divesh Kumar**
+- Role: Full-Stack Developer
+- Email: diveshkumar.s007@gmail.com
+- GitHub: [DiveshK007](https://github.com/DiveshK007)
+
+> **Note**: Update with your actual team information.
+
+## 🔗 Submission Links
+
+- **GitHub Repository**: https://github.com/DiveshK007/NeuroCred
+- **Live Frontend**: [Add your deployed frontend URL]
+- **Backend API**: [Add your deployed backend URL]
+- **Demo Video**: [Add your video URL]
+- **Contract Explorer**: [Add contract explorer link after deployment]
+
 ## 📚 Documentation
 
 - [Architecture](./docs/architecture.md)
-- [API Documentation](./docs/api.md)
+- [Demo Video Script](./docs/demo-script.md)
+- [QIEDex Integration](./docs/qiedex-integration.md)
 - [Integration Guide](./frontend/app/dev/page.tsx)
 
 ## 🤝 Contributing

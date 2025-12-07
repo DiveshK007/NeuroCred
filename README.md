@@ -1,212 +1,95 @@
-# NeuroCred: AI Credit Passport on QIE
+# NeuroCred
 
-An AI-powered on-chain credit passport that scores wallets, mints a soulbound NFT, and lets any DeFi app on QIE do safer lending in 1 call.
+**AI-Powered Credit Passport on QIE Blockchain**
 
-## 🎯 Project Overview
+An on-chain credit scoring system that analyzes wallet activity, generates credit scores (0-1000), and stores them as soulbound NFTs. Any DeFi protocol on QIE can query scores to enable safer, under-collateralized lending.
 
-NeuroCred provides a reusable credit scoring system for the QIE blockchain ecosystem. Wallets receive a credit score (0-1000) stored as a soulbound NFT, which any DeFi protocol can query to make informed lending decisions.
+---
 
-### Key Features
+## 🎯 Overview
 
-- **AI-Powered Scoring**: Analyzes on-chain activity, transaction history, and portfolio composition
-- **Soulbound NFT**: Non-transferable Credit Passport NFT stores score on-chain
-- **Universal Integration**: Any dApp can read scores via simple contract call
-- **QIE Ecosystem**: Built for QIE Testnet with 25,000+ TPS and near-zero fees
+NeuroCred solves the problem of blind lending in DeFi by providing portable, on-chain credit identity. Wallets receive a reusable credit score stored as a soulbound NFT, enabling any protocol to make informed lending decisions with a single contract call.
+
+### Features
+
+- 🤖 **AI-Powered Scoring** - Analyzes transaction history, portfolio composition, and on-chain behavior
+- 🔒 **Soulbound NFT** - Non-transferable Credit Passport stores score on-chain
+- 🔌 **Universal Integration** - Simple contract interface for any dApp
+- ⚡ **QIE Optimized** - Built for QIE's 25,000+ TPS and near-zero fees
+- 📊 **QIE Oracles** - Real-time price and volatility data integration
+
+---
 
 ## 🏗️ Architecture
 
-### System Architecture Diagram
-
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         USER INTERFACE LAYER                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐ │
-│  │   Landing    │         │  Dashboard   │         │ Integration  │ │
-│  │    Page      │         │    Page      │         │   Docs Page  │ │
-│  └──────────────┘         └──────────────┘         └──────────────┘ │
-│         │                       │                       │           │
-│         └───────────────────────┴───────────────────────┘           │
-│                                 │                                     │
-│                    ┌────────────▼────────────┐                       │
-│                    │   React Components      │                       │
-│                    │  - WalletConnect        │                       │
-│                    │  - ScoreDisplay         │                       │
-│                    │  - TransactionHandler   │                       │
-│                    └────────────┬────────────┘                       │
-│                                 │                                     │
-└─────────────────────────────────┼─────────────────────────────────────┘
-                                  │ HTTP/REST API
-┌─────────────────────────────────┼─────────────────────────────────────┐
-│                    APPLICATION LAYER (Backend)                         │
-├─────────────────────────────────┼─────────────────────────────────────┤
-│                                 │                                     │
-│         ┌───────────────────────▼───────────────────────┐            │
-│         │          FastAPI Application                   │            │
-│         │  - POST /api/score (generate + update)        │            │
-│         │  - GET  /api/score/{address} (query)          │            │
-│         │  - POST /api/update-on-chain (manual update)   │            │
-│         └───────────────────────┬───────────────────────┘            │
-│                                 │                                     │
-│         ┌───────────────────────┼───────────────────────┐            │
-│         │                       │                       │            │
-│  ┌──────▼──────┐      ┌─────────▼─────────┐  ┌─────────▼─────────┐ │
-│  │  Scoring    │      │  Transaction      │  │   Blockchain      │ │
-│  │  Service    │      │   Indexer         │  │    Service        │ │
-│  │             │      │                   │  │                   │ │
-│  │ - Feature   │      │ - Full TX history │  │ - Contract calls   │ │
-│  │   extraction│      │ - TX analysis     │  │ - mintOrUpdate()  │ │
-│  │ - Score calc│      │ - Metrics calc    │  │ - getScore()      │ │
-│  │ - Risk band │      │ - Token detection │  │ - TX signing      │ │
-│  └──────┬──────┘      └─────────┬─────────┘  └─────────┬─────────┘ │
-│         │                       │                       │            │
-│         └───────────────────────┼───────────────────────┘            │
-│                                 │                                     │
-│                    ┌─────────────▼─────────────┐                     │
-│                    │   QIE Oracle Service      │                     │
-│                    │  - Price fetching         │                     │
-│                    │  - Volatility calculation │                     │
-│                    │  - Historical data         │                     │
-│                    └─────────────┬─────────────┘                     │
-│                                   │                                   │
-└───────────────────────────────────┼───────────────────────────────────┘
-                                    │ RPC Calls
-┌───────────────────────────────────┼───────────────────────────────────┐
-│                    BLOCKCHAIN LAYER (QIE Network)                      │
-├───────────────────────────────────┼───────────────────────────────────┤
-│                                   │                                   │
-│         ┌─────────────────────────▼─────────────────────────┐         │
-│         │            QIE Blockchain (EVM-Compatible)         │         │
-│         │  - 25,000+ TPS                                     │         │
-│         │  - 3-second finality                                │         │
-│         │  - Near-zero fees                                   │         │
-│         └─────────────────────────┬─────────────────────────┘         │
-│                                   │                                   │
-│         ┌─────────────────────────┼─────────────────────────┐         │
-│         │                         │                         │         │
-│  ┌──────▼──────┐        ┌─────────▼─────────┐  ┌─────────▼─────────┐│
-│  │CreditPassport│       │  QIE Oracles       │  │   QIEDex          ││
-│  │     NFT      │       │  (7 Oracles)       │  │  (Token Creator)  ││
-│  │              │       │                    │  │                   ││
-│  │- Soulbound   │       │- Crypto prices     │  │- NCRD token       ││
-│  │- Score store │       │- Forex rates       │  │- DEX integration  ││
-│  │- getScore()  │       │- Commodity prices  │  │- Liquidity       ││
-│  │- mintOrUpdate│       │- Volatility data   │  │                   ││
-│  └──────────────┘       └────────────────────┘  └───────────────────┘│
-│         │                                                             │
-│  ┌──────▼──────┐                                                     │
-│  │NeuroCred     │                                                     │
-│  │  Staking     │                                                     │
-│  │              │                                                     │
-│  │- NCRD staking│                                                     │
-│  │- Tier system │                                                     │
-│  └──────────────┘                                                     │
-│                                                                       │
-└───────────────────────────────────────────────────────────────────────┘
-
-┌───────────────────────────────────────────────────────────────────────┐
-│                      EXTERNAL SERVICES                                │
-├───────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                │
-│  │  QIE Wallet  │  │  MetaMask    │  │  QIE Explorer│                │
-│  │              │  │  (with QIE   │  │              │                │
-│  │- Wallet conn │  │   RPC)       │  │- TX tracking │                │
-│  │- Signing     │  │- Signing     │  │- Contract    │                │
-│  │- Balance     │  │- Balance     │  │  verification │                │
-│  └──────────────┘  └──────────────┘  └──────────────┘                │
-│                                                                       │
-└───────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend (Next.js)                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
+│  │ Landing  │  │Dashboard │  │   Docs   │                  │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘                  │
+│       └─────────────┴──────────────┘                         │
+│                    │                                          │
+│            WalletConnect │ ScoreDisplay                       │
+└────────────────────┼──────────────────────────────────────────┘
+                     │ HTTP/REST
+┌────────────────────┼──────────────────────────────────────────┐
+│              Backend (FastAPI)                                 │
+│  ┌──────────────────────────────────────┐                     │
+│  │  API: /api/score, /api/update        │                     │
+│  └──────────────┬───────────────────────┘                     │
+│                 │                                              │
+│  ┌──────────────▼──────────────┐                             │
+│  │  Scoring Service             │                             │
+│  │  • Feature Extraction        │                             │
+│  │  • Score Calculation (0-1000)│                             │
+│  │  • Risk Band (1-3)           │                             │
+│  └──────────────┬───────────────┘                             │
+│                 │                                              │
+│  ┌──────────────▼──────────────┐  ┌──────────────────────┐  │
+│  │  Transaction Indexer        │  │  QIE Oracle Service   │  │
+│  │  • Full TX History          │  │  • Price Data         │  │
+│  │  • Volume Analysis          │  │  • Volatility         │  │
+│  │  • Token Detection          │  │  • Historical Data    │  │
+│  └──────────────┬───────────────┘  └──────────────────────┘  │
+│                 │                                              │
+│  ┌──────────────▼──────────────┐                             │
+│  │  Blockchain Service          │                             │
+│  │  • Contract Interaction      │                             │
+│  │  • Transaction Signing       │                             │
+│  └──────────────┬───────────────┘                             │
+└─────────────────┼──────────────────────────────────────────────┘
+                  │ RPC
+┌─────────────────┼──────────────────────────────────────────────┐
+│           QIE Blockchain (EVM-Compatible)                     │
+│  ┌──────────────────────────────────────────────┐             │
+│  │  CreditPassportNFT (Soulbound)               │             │
+│  │  • mintOrUpdate(address, score, riskBand)   │             │
+│  │  • getScore(address) → ScoreView             │             │
+│  └──────────────────────────────────────────────┘             │
+│                                                               │
+│  ┌──────────────────┐  ┌──────────────────┐                  │
+│  │  QIE Oracles    │  │  QIEDex          │                  │
+│  │  (7 Oracles)    │  │  (Token Creator) │                  │
+│  └──────────────────┘  └──────────────────┘                  │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
 ```
-User Action Flow:
-─────────────────
-1. User connects wallet (Frontend)
-   ↓
-2. User clicks "Generate Credit Passport" (Frontend)
-   ↓
-3. Frontend → POST /api/score (Backend API)
-   ↓
-4. Backend Scoring Service:
-   ├─→ Transaction Indexer: Fetch full TX history
-   ├─→ QIE Oracle Service: Get prices & volatility
-   ├─→ Feature Extraction: Calculate metrics
-   └─→ Score Calculation: Generate score (0-1000)
-   ↓
-5. Backend Blockchain Service:
-   ├─→ Sign transaction with backend wallet
-   ├─→ Call mintOrUpdate() on CreditPassportNFT
-   └─→ Wait for confirmation
-   ↓
-6. Backend → Return score + txHash (Backend API)
-   ↓
-7. Frontend displays:
-   ├─→ Score gauge
-   ├─→ Risk band
-   ├─→ Transaction hash
-   └─→ Explorer link
-   ↓
-8. Other dApps can query:
-   └─→ getScore(address) directly from contract
-
-DeFi Integration Flow:
-──────────────────────
-1. DeFi Protocol calls getScore(userAddress)
-   ↓
-2. Contract returns ScoreView {score, riskBand, lastUpdated}
-   ↓
-3. Protocol adjusts:
-   ├─→ Loan-to-Value (LTV) ratio
-   ├─→ Interest rates
-   ├─→ Collateral requirements
-   └─→ Loan limits
+User → Connect Wallet → Generate Score
+  ↓
+Backend → Analyze TX History → Fetch Oracle Data → Calculate Score
+  ↓
+Blockchain → mintOrUpdate() → Store as Soulbound NFT
+  ↓
+Frontend → Display Score + Risk Band + TX Hash
+  ↓
+DeFi Protocol → getScore(address) → Adjust LTV/Rates
 ```
 
-### Component Details
-
-**Frontend (Next.js)**
-- **Pages**: Landing, Dashboard, Integration Docs
-- **Components**: WalletConnect, ScoreDisplay
-- **State Management**: React hooks
-- **Wallet Integration**: Ethers.js with MetaMask/QIE Wallet
-
-**Backend (FastAPI)**
-- **Scoring Service**: AI-powered credit scoring with full feature extraction
-- **Transaction Indexer**: Complete transaction history analysis
-- **Oracle Service**: QIE Oracle integration with fallback APIs
-- **Blockchain Service**: Contract interaction and transaction signing
-
-**Smart Contracts (Solidity)**
-- **CreditPassportNFT**: Soulbound NFT storing credit scores
-- **INeuroCredScore**: Interface for dApp integration
-- **NeuroCredStaking**: NCRD token staking for integration tiers
-
-**External Integrations**
-- **QIE Oracles**: Price, volatility, forex, commodity data
-- **QIEDex**: Token creation and DEX integration
-- **QIE Explorer**: Transaction verification and tracking
-
-## 📁 Project Structure
-
-```
-NeuroCred/
-├── contracts/          # Hardhat smart contracts
-│   ├── contracts/      # Solidity contracts
-│   ├── scripts/        # Deployment scripts
-│   └── test/           # Contract tests
-├── backend/            # FastAPI backend
-│   ├── services/       # Scoring & blockchain services
-│   ├── models/         # Data models
-│   └── app.py          # FastAPI application
-├── frontend/           # Next.js frontend
-│   ├── app/            # Next.js app directory
-│   └── components/     # React components
-└── docs/               # Documentation
-```
+---
 
 ## 🚀 Quick Start
 
@@ -214,120 +97,99 @@ NeuroCred/
 
 - Node.js 18+
 - Python 3.10+
+- QIE Testnet RPC access
 - MetaMask or QIE Wallet
 
-### 1. Contracts Setup
+### Installation
 
 ```bash
+# Clone repository
+git clone https://github.com/DiveshK007/NeuroCred.git
+cd NeuroCred
+
+# Install contracts dependencies
 cd contracts
 npm install
-npm run compile
-```
 
-### 2. Backend Setup
-
-```bash
-cd backend
-python3 -m venv venv
+# Install backend dependencies
+cd ../backend
+python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-### 3. Frontend Setup
-
-```bash
-cd frontend
+# Install frontend dependencies
+cd ../frontend
 npm install
-npm run dev
 ```
 
-## ⚙️ Configuration
+### Configuration
 
-### Environment Variables
-
-#### Contracts (`.env` in `contracts/`)
-```
+1. **Contracts** - Create `contracts/.env`:
+```env
 QIE_TESTNET_RPC_URL=https://testnet.qie.digital
-QIE_TESTNET_CHAIN_ID=1337
 PRIVATE_KEY=your_deployer_private_key
-BACKEND_WALLET_ADDRESS=backend_wallet_address
+BACKEND_WALLET_ADDRESS=your_backend_wallet_address
 ```
 
-#### Backend (`.env` in `backend/`)
-```
+2. **Backend** - Create `backend/.env`:
+```env
 QIE_TESTNET_RPC_URL=https://testnet.qie.digital
-CREDIT_PASSPORT_NFT_ADDRESS=deployed_contract_address
-BACKEND_PRIVATE_KEY=backend_wallet_private_key
+CREDIT_PASSPORT_NFT_ADDRESS=0x...  # After deployment
+BACKEND_PRIVATE_KEY=your_backend_private_key
 ```
 
-#### Frontend (`.env.local` in `frontend/`)
-```
+3. **Frontend** - Create `frontend/.env.local`:
+```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_CONTRACT_ADDRESS=deployed_contract_address
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x...  # After deployment
 ```
 
-## 📝 Deployment
-
-### Deploy Contracts
+### Deployment
 
 ```bash
+# 1. Deploy contracts
 cd contracts
 npm run deploy:testnet
-```
 
-Save the deployed contract address to your backend and frontend `.env` files.
-
-### Run Backend
-
-```bash
-cd backend
-source venv/bin/activate
+# 2. Start backend
+cd ../backend
 python app.py
-```
 
-Backend runs on `http://localhost:8000`
-
-### Run Frontend
-
-```bash
-cd frontend
+# 3. Start frontend
+cd ../frontend
 npm run dev
 ```
 
-Frontend runs on `http://localhost:3000`
+Visit `http://localhost:3000` to use the application.
 
-## 🔌 Integration
+---
 
-### For DeFi Protocols
+## 📁 Project Structure
 
-```solidity
-import "./INeuroCredScore.sol";
-
-INeuroCredScore neuro = INeuroCredScore(CONTRACT_ADDRESS);
-INeuroCredScore.ScoreView memory sv = neuro.getScore(user);
-
-if (sv.riskBand == 1) {
-    // Low risk - offer better rates
-    ltv = 80%;
-} else if (sv.riskBand == 2) {
-    // Medium risk
-    ltv = 60%;
-} else {
-    // High risk - require more collateral
-    ltv = 40%;
-}
+```
+NeuroCred/
+├── contracts/          # Smart contracts (Hardhat)
+│   ├── contracts/     # Solidity contracts
+│   ├── scripts/       # Deployment & verification
+│   └── test/          # Contract tests
+├── backend/           # FastAPI backend
+│   ├── services/      # Scoring, blockchain, oracle services
+│   ├── utils/         # Logging, caching, error handling
+│   └── models/        # Data models
+├── frontend/          # Next.js frontend
+│   └── app/           # Pages and components
+└── docs/              # Documentation
 ```
 
-See `frontend/app/dev/page.tsx` for full integration examples.
+---
 
-## 📡 API Documentation
+## 🔧 API Endpoints
 
-### Generate Credit Score
+### Generate Score
+```http
+POST /api/score
+Content-Type: application/json
 
-**Endpoint:** `POST /api/score`
-
-**Request:**
-```json
 {
   "address": "0x..."
 }
@@ -339,233 +201,104 @@ See `frontend/app/dev/page.tsx` for full integration examples.
   "address": "0x...",
   "score": 750,
   "riskBand": 1,
-  "explanation": "Low risk: High transaction activity, good volume, stable portfolio",
-  "transactionHash": "0x..." // Transaction hash from on-chain update
+  "explanation": "Low risk: High transaction activity...",
+  "transactionHash": "0x..."
 }
 ```
 
 ### Get Score
+```http
+GET /api/score/{address}
+```
 
-**Endpoint:** `GET /api/score/{address}`
+### Health Check
+```http
+GET /health
+```
 
-**Response:**
-```json
-{
-  "address": "0x...",
-  "score": 750,
-  "riskBand": 1,
-  "explanation": "Score retrieved from blockchain"
+---
+
+## 🔌 Integration
+
+Any DeFi protocol can query NeuroCred scores:
+
+```solidity
+import "./INeuroCredScore.sol";
+
+contract MyLendingProtocol {
+    INeuroCredScore neuroCred = INeuroCredScore(0x...);
+    
+    function checkCredit(address borrower) external view {
+        INeuroCredScore.ScoreView memory score = neuroCred.getScore(borrower);
+        
+        if (score.riskBand == 1) {
+            // Low risk - allow higher LTV
+            ltv = 80%;
+        } else if (score.riskBand == 2) {
+            // Medium risk
+            ltv = 60%;
+        } else {
+            // High risk
+            ltv = 40%;
+        }
+    }
 }
 ```
 
-### Update Score On-Chain
-
-**Endpoint:** `POST /api/update-on-chain`
-
-**Request:**
-```json
-{
-  "address": "0x...",
-  "score": 750,
-  "riskBand": 1
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "transactionHash": "0x...",
-  "message": "Score updated on-chain successfully"
-}
-```
-
-## ✅ Verification Steps
-
-### Verify Contract Deployment
-
-1. Deploy contracts:
-   ```bash
-   cd contracts
-   npm run deploy:testnet
-   ```
-
-2. Verify on explorer:
-   - Visit: `https://testnet.qie.digital/address/[CONTRACT_ADDRESS]`
-   - Check contract code is verified
-   - Verify SCORE_UPDATER_ROLE is set
-
-3. Run verification script:
-   ```bash
-   cd contracts
-   npm run verify:deployment
-   ```
-
-### Verify SCORE_UPDATER_ROLE
-
-Run the verification script:
-```bash
-cd contracts
-npm run verify:role
-```
-
-Or manually check:
-```typescript
-const hasRole = await passportNFT.hasRole(
-  await passportNFT.SCORE_UPDATER_ROLE(),
-  backendWalletAddress
-);
-console.log("Has role:", hasRole); // Should be true
-```
-
-### Verify API Endpoints
-
-Test all endpoints:
-```bash
-# Test score generation
-curl -X POST http://localhost:8000/api/score \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0x..."}'
-
-# Test get score
-curl http://localhost:8000/api/score/0x...
-
-# Test on-chain update
-curl -X POST http://localhost:8000/api/update-on-chain \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0x...", "score": 750, "riskBand": 1}'
-```
+---
 
 ## 🧪 Testing
 
-### Contract Tests
-
 ```bash
+# Test contracts
 cd contracts
 npm test
+
+# Verify deployment
+npm run verify:deployment
+npm run verify:role
 ```
 
-### End-to-End Flow
+---
 
-1. Connect wallet on frontend
-2. Click "Generate My Credit Passport"
-3. Backend computes score
-4. Score is minted as NFT on-chain
-5. View score on dashboard
-6. Other dApps can query score via contract
+## 📚 Documentation
 
-## 📊 Evaluation Criteria Alignment
+- [Demo Script](./docs/demo-script.md) - Video demo guide
+- [QIEDex Integration](./docs/qiedex-integration.md) - Token creation guide
 
-- ✅ **Innovation (25%)**: First AI credit passport on QIE
-- ✅ **Impact (25%)**: Enables safer lending across QIE DeFi
-- ✅ **Technical Execution (25%)**: Smart contracts, AI backend, full stack, contract tests
-- ✅ **Presentation (15%)**: Clean UI, comprehensive docs
-- ✅ **Bonus (10%)**: ✅ QIE Oracles integrated, ✅ QIEDex integration ready, ✅ Contract tests
+---
 
-## 🏆 Hackathon Requirements
+## 🛠️ Tech Stack
 
-### $500 Valid Submission Requirements
+- **Smart Contracts**: Solidity, Hardhat, OpenZeppelin
+- **Backend**: FastAPI, Python, Web3.py
+- **Frontend**: Next.js, React, Ethers.js, Tailwind CSS
+- **Blockchain**: QIE Testnet (EVM-compatible)
+- **Oracles**: QIE Oracles (7 oracles)
 
-- ✅ Wallet Integration (MetaMask/QIE Wallet)
-- ✅ Smart Contracts Ready for QIE Testnet Deployment
-- ✅ Real On-Chain Functionality (minting, queries)
-- ✅ Contract Tests Included
+---
 
-### Main Prize Requirements
+## 📄 License
 
-- ✅ AI × Blockchain theme
-- ✅ Identity & Security integration
-- ✅ Tokenization (Credit Passport NFT)
-- ✅ QIE Oracles integrated
-- ✅ QIEDex integration ready
+MIT License - see LICENSE file for details
 
-## 📍 Contract Addresses
-
-### QIE Testnet Deployment
-
-**CreditPassportNFT Contract:**
-```
-Address: [To be deployed - run npm run deploy:testnet]
-Explorer: https://testnet.qie.digital/address/[CONTRACT_ADDRESS]
-```
-
-**NeuroCredStaking Contract (Optional):**
-```
-Address: [To be deployed after NCRD token creation]
-Explorer: https://testnet.qie.digital/address/[STAKING_ADDRESS]
-```
-
-> **Note**: After deployment, update these addresses in your `.env` files and this README.
-
-## 🎬 Demo Video
-
-**Demo Video Link:** [Add your YouTube/Vimeo link here after recording]
-
-The demo video showcases:
-- Problem statement and solution overview
-- Live wallet connection and score generation
-- On-chain transaction verification
-- Developer integration examples
-- Technical architecture walkthrough
-
-> **Recording Guide**: See [docs/demo-script.md](./docs/demo-script.md) for detailed script.
-
-## 📸 Screenshots
-
-### Landing Page
-![Landing Page](./screenshots/landing.png)
-*Clean, modern UI with wallet connection*
-
-### Score Dashboard
-![Score Dashboard](./screenshots/dashboard.png)
-*Credit score visualization with risk band indicator*
-
-### Integration Guide
-![Integration Guide](./screenshots/integration.png)
-*Developer documentation for dApp integration*
-
-> **Note**: Add screenshots to `screenshots/` folder and update paths above.
+---
 
 ## 👥 Team
 
 **Divesh Kumar**
-- Role: Full-Stack Developer
+- GitHub: [@DiveshK007](https://github.com/DiveshK007)
 - Email: diveshkumar.s007@gmail.com
-- GitHub: [DiveshK007](https://github.com/DiveshK007)
 
-> **Note**: Update with your actual team information.
-
-## 🔗 Submission Links
-
-- **GitHub Repository**: https://github.com/DiveshK007/NeuroCred
-- **Live Frontend**: [Add your deployed frontend URL]
-- **Backend API**: [Add your deployed backend URL]
-- **Demo Video**: [Add your video URL]
-- **Contract Explorer**: [Add contract explorer link after deployment]
-
-## 📚 Documentation
-
-- [Architecture](./docs/architecture.md)
-- [Demo Video Script](./docs/demo-script.md)
-- [QIEDex Integration](./docs/qiedex-integration.md)
-- [Integration Guide](./frontend/app/dev/page.tsx)
-
-## 🤝 Contributing
-
-This is a hackathon project. For questions or issues, please open an issue on GitHub.
-
-## 📄 License
-
-MIT License - See LICENSE file for details
+---
 
 ## 🔗 Links
 
-- **QIE Testnet**: https://testnet.qie.digital
-- **QIE Wallet**: https://qiewallet.me
-- **QIEDex**: https://qiedex.qie.digital
-- **Documentation**: https://docs.qie.digital/developer-docs
+- **GitHub**: https://github.com/DiveshK007/NeuroCred
+- **Demo Video**: [Add your video link]
+- **Contract Address**: [Add after deployment]
+- **Explorer**: [Add explorer link]
 
 ---
 
 Built for QIE Hackathon 2025 🚀
-

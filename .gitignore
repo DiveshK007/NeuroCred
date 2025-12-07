@@ -45,3 +45,7 @@ coverage/
 # Hardhat
 .openzeppelin/
 
+logs/
+__pycache__/
+*.pyc
+.env

@@ -175,7 +175,7 @@ export default function Dashboard() {
                     <div className="flex justify-between">
                       <span>Staked:</span>
                       <span className="font-semibold">
-                        {ethers.formatEther(stakedAmount.toString())} NCRD
+                        {stakedAmount > 0 ? (stakedAmount / 1e18).toFixed(2) : '0'} NCRD
                       </span>
                     </div>
                     <div className="flex justify-between text-green-600">

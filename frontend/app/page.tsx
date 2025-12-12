@@ -139,7 +139,13 @@ export default function Home() {
                     </a>
                   </div>
                 )}
-                <div className="mt-6 flex justify-center gap-4">
+                <div className="mt-6 flex justify-center gap-4 flex-wrap">
+                  <a
+                    href="/lend"
+                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                  >
+                    💬 Chat with Q-Loan AI
+                  </a>
                   <a
                     href="/stake"
                     className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"

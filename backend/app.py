@@ -202,6 +202,28 @@ async def get_ltv(address: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Q-Loan Chat API
+class ChatRequest(BaseModel):
+    address: str
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
+    offer: Optional[Dict] = None
+    signature: Optional[str] = None
+    requiresSignature: bool = False
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Chat with Q-Loan AI agent"""
+    try:
+        from core.agent import QLoanAgent
+        agent = QLoanAgent()
+        result = await agent.process_chat(request.address, request.message)
+        return ChatResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/update-on-chain", response_model=UpdateOnChainResponse)
 async def update_on_chain(request: UpdateOnChainRequest):
     """Update score on blockchain"""

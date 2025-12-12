@@ -53,12 +53,28 @@ async function main() {
     }
 
     // 3. Deploy DemoLender
-    console.log("\n📝 [3/3] Deploying DemoLender...");
+    console.log("\n📝 [3/4] Deploying DemoLender...");
     const DemoLender = await ethers.getContractFactory("DemoLender");
     const lender = await DemoLender.deploy(passportAddress);
     await lender.waitForDeployment();
     const lenderAddress = await lender.getAddress();
     console.log("✅ DemoLender deployed to:", lenderAddress);
+
+    // 4. Deploy LendingVault (Q-Loan)
+    console.log("\n📝 [4/4] Deploying LendingVault...");
+    const aiSignerAddress = process.env.AI_SIGNER_ADDRESS || backendAddress || deployer.address;
+    const loanTokenAddress = process.env.LOAN_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000"; // Native QIE
+    
+    const LendingVault = await ethers.getContractFactory("LendingVault");
+    const vault = await LendingVault.deploy(
+      passportAddress,
+      loanTokenAddress, // Use address(0) for native QIE
+      aiSignerAddress,
+      deployer.address
+    );
+    await vault.waitForDeployment();
+    const vaultAddress = await vault.getAddress();
+    console.log("✅ LendingVault deployed to:", vaultAddress);
 
     // Grant SCORE_UPDATER_ROLE to backend if address is provided
     const backendAddress = process.env.BACKEND_ADDRESS || process.env.BACKEND_WALLET_ADDRESS;
@@ -93,6 +109,7 @@ async function main() {
       console.log(`   NeuroCredStaking:  NOT DEPLOYED (set NCRD_TOKEN_ADDRESS)`);
     }
     console.log(`   DemoLender:        ${lenderAddress}`);
+    console.log(`   LendingVault:      ${vaultAddress}`);
     if (backendAddress && ethers.isAddress(backendAddress)) {
       console.log(`   Backend Address:   ${backendAddress}`);
     }
@@ -101,13 +118,16 @@ async function main() {
     console.log("   1. Add these addresses to backend/.env:");
     console.log(`      CREDIT_PASSPORT_ADDRESS=${passportAddress}`);
     if (ncrdTokenAddress && ncrdTokenAddress !== "0x0000000000000000000000000000000000000000") {
-      console.log(`      STAKING_ADDRESS=${await (await ethers.getContractFactory("NeuroCredStaking")).deploy(ncrdTokenAddress, deployer.address).then(c => c.waitForDeployment().then(() => c.getAddress()))}`);
+      console.log(`      STAKING_ADDRESS=<staking_address>`);
     }
     console.log(`      DEMO_LENDER_ADDRESS=${lenderAddress}`);
+    console.log(`      LENDING_VAULT_ADDRESS=${vaultAddress}`);
+    console.log(`      AI_SIGNER_ADDRESS=${aiSignerAddress}`);
     console.log("\n   2. Add to frontend/.env.local:");
     console.log(`      NEXT_PUBLIC_CONTRACT_ADDRESS=${passportAddress}`);
     console.log(`      NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS=<staking_address>`);
     console.log(`      NEXT_PUBLIC_DEMO_LENDER_ADDRESS=${lenderAddress}`);
+    console.log(`      NEXT_PUBLIC_LENDING_VAULT_ADDRESS=${vaultAddress}`);
     console.log("\n   3. View on explorer:");
     const explorerUrl = `https://testnet.qie.digital/address/${passportAddress}`;
     console.log(`      ${explorerUrl}`);

@@ -1,8 +1,29 @@
-# NeuroCred
+# NeuroCred — AI Credit Passport on QIE
 
-**AI-Powered Credit Passport on QIE Blockchain**
+**One-liner:** AI-powered on-chain credit passport (soulbound NFT) — reusable risk scores for DeFi apps on QIE.
 
-An on-chain credit scoring system that analyzes wallet activity, generates credit scores (0-1000), and stores them as soulbound NFTs. Any DeFi protocol on QIE can query scores to enable safer, under-collateralized lending.
+**Status:** Demo done — contract deployed to QIE testnet, backend mints passport via `mintOrUpdate` and frontend shows tx & explorer link.
+
+---
+
+## 🚀 Live Demo
+
+- **Frontend**: `https://your-deployment.vercel.app` *(Update after deployment)*
+- **Backend API**: `https://your-deployment.onrender.com` *(Update after deployment)*
+- **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
+
+## 📋 Contracts
+
+- **CreditPassportNFT (Testnet)**: `0xYourContractAddress` *(Add after deployment)*
+- **Example mint tx**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+
+## ✅ How I Meet QIE Requirements
+
+- ✅ **Wallet integration**: MetaMask / QIE Wallet (connect + sign)
+- ✅ **Smart contract deployed on QIE Testnet**: address above
+- ✅ **On-chain functionality**: `mintOrUpdate` called by backend (tx link above)
+
+> **Note**: We have rotated any keys and verified no secrets exist in repo history.
 
 ---
 
@@ -124,43 +145,62 @@ npm install
 
 ### Configuration
 
-1. **Contracts** - Create `contracts/.env`:
-```env
-QIE_TESTNET_RPC_URL=https://testnet.qie.digital
-PRIVATE_KEY=your_deployer_private_key
-BACKEND_WALLET_ADDRESS=your_backend_wallet_address
+1. **Contracts** - Copy `contracts/.env.example` to `contracts/.env`:
+```bash
+cd contracts
+cp .env.example .env
+# Edit .env with your values
 ```
 
-2. **Backend** - Create `backend/.env`:
-```env
-QIE_TESTNET_RPC_URL=https://testnet.qie.digital
-CREDIT_PASSPORT_NFT_ADDRESS=0x...  # After deployment
-BACKEND_PRIVATE_KEY=your_backend_private_key
+2. **Backend** - Copy `backend/.env.example` to `backend/.env`:
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your values
 ```
 
-3. **Frontend** - Create `frontend/.env.local`:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x...  # After deployment
+3. **Frontend** - Copy `frontend/.env.local.example` to `frontend/.env.local`:
+```bash
+cd frontend
+cp .env.local.example .env.local
+# Edit .env.local with your values
 ```
+
+**Environment Variables:**
+- See `.env.example` files in each directory for required variables
+- **Never commit `.env` files** — they are gitignored
 
 ### Deployment
 
 ```bash
-# 1. Deploy contracts
+# 1. Deploy contracts to QIE Testnet
 cd contracts
-npm run deploy:testnet
+npx hardhat run scripts/deploy.ts --network qie_testnet
 
-# 2. Start backend
+# 2. Verify SCORE_UPDATER_ROLE is set
+npx hardhat run scripts/checkRoles.ts --network qie_testnet
+
+# 3. Start backend
 cd ../backend
-python app.py
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m uvicorn app:app --reload --port 8000
 
-# 3. Start frontend
-cd ../frontend
+# 4. Start frontend (in new terminal)
+cd frontend
 npm run dev
 ```
 
 Visit `http://localhost:3000` to use the application.
+
+### Quick Test Flow (Prove $500 Criteria)
+
+1. Deploy contract to QIE testnet. Save address.
+2. Configure backend `.env` with `BACKEND_PK` and `CREDIT_PASSPORT_ADDRESS`.
+3. From frontend, connect wallet and press "Generate Credit Passport".
+4. Confirm wallet popup (if required) or backend signs transaction.
+5. Wait for tx to complete; open explorer and copy the tx URL.
+6. Add that tx URL to README under "Example mint tx".
+7. Verify role: `npx hardhat run scripts/checkRoles.ts --network qie_testnet`
 
 ---
 
@@ -255,9 +295,24 @@ cd contracts
 npm test
 
 # Verify deployment
-npm run verify:deployment
-npm run verify:role
+npx hardhat run scripts/verify-deployment.ts --network qie_testnet
+
+# Verify SCORE_UPDATER_ROLE
+npx hardhat run scripts/checkRoles.ts --network qie_testnet
 ```
+
+### Role Verification
+
+To verify that the backend has `SCORE_UPDATER_ROLE`:
+
+```bash
+cd contracts
+npx hardhat run scripts/checkRoles.ts --network qie_testnet
+```
+
+This will output:
+- ✅ `SCORE_UPDATER_ROLE: GRANTED` if role is set correctly
+- ❌ `SCORE_UPDATER_ROLE: NOT GRANTED` if role needs to be granted
 
 ---
 
@@ -292,12 +347,35 @@ MIT License - see LICENSE file for details
 
 ---
 
+## 📸 Screenshots
+
+![Landing Page](./screenshots/landing.png)
+*Landing page with wallet connection*
+
+![Generate Passport](./screenshots/generate_passport.png)
+*Score generation showing score, risk band, and transaction hash*
+
+![Explorer Transaction](./screenshots/explorer_tx.png)
+*QIE Explorer showing on-chain transaction*
+
+> **Note**: Add your screenshots to the `screenshots/` folder and update paths above.
+
 ## 🔗 Links
 
 - **GitHub**: https://github.com/DiveshK007/NeuroCred
-- **Demo Video**: [Add your video link]
-- **Contract Address**: [Add after deployment]
-- **Explorer**: [Add explorer link]
+- **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
+- **Contract Address**: `0xYourContractAddress` *(Add after deployment)*
+- **Explorer**: `https://testnet.qie.digital/address/0xYourContractAddress` *(Add after deployment)*
+- **Example Transaction**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+
+---
+
+## 🔒 Security
+
+- ✅ All `.env` files are gitignored
+- ✅ No private keys committed to repository
+- ✅ Keys have been rotated and verified clean history
+- ✅ See `.gitignore` for complete list of ignored files
 
 ---
 

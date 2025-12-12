@@ -1,6 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -8,60 +7,23 @@ from dotenv import load_dotenv
 
 from services.scoring import ScoringService
 from services.blockchain import BlockchainService
-from config import Config
-from utils.logger import logger
-from utils.error_handler import global_exception_handler, NeuroCredError
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.util import get_remote_address
-    from slowapi.errors import RateLimitExceeded
-    SLOWAPI_AVAILABLE = True
-except ImportError:
-    SLOWAPI_AVAILABLE = False
-    Limiter = None
 
 load_dotenv()
 
-# Validate configuration
-config_errors = Config.validate()
-if config_errors:
-    logger.warning(f"Configuration warnings: {', '.join(config_errors)}")
-
-app = FastAPI(
-    title="NeuroCred API",
-    version="1.0.0",
-    description="AI-powered credit passport API for QIE blockchain"
-)
-
-# Rate limiting
-limiter = None
-if Config.RATE_LIMIT_ENABLED and SLOWAPI_AVAILABLE:
-    limiter = Limiter(key_func=get_remote_address)
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-elif Config.RATE_LIMIT_ENABLED:
-    logger.warning("Rate limiting enabled but slowapi not installed. Install with: pip install slowapi")
-
-# Add global exception handler
-app.add_exception_handler(Exception, global_exception_handler)
+app = FastAPI(title="NeuroCred API", version="1.0.0")
 
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=Config.CORS_ORIGINS,
+    allow_origins=["*"],  # In production, specify your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Initialize services
-try:
-    scoring_service = ScoringService()
-    blockchain_service = BlockchainService()
-    logger.info("Services initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize services: {e}")
-    raise
+scoring_service = ScoringService()
+blockchain_service = BlockchainService()
 
 # Request/Response models
 class ScoreRequest(BaseModel):
@@ -86,47 +48,14 @@ class UpdateOnChainResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
-    return {
-        "message": "NeuroCred API",
-        "version": "1.0.0",
-        "status": "healthy",
-        "environment": Config.ENV
-    }
-
-@app.get("/health")
-async def health():
-    """Detailed health check"""
-    health_status = {
-        "status": "healthy",
-        "services": {
-            "scoring": "operational",
-            "blockchain": "operational" if blockchain_service else "unavailable",
-            "oracle": "operational"
-        },
-        "contract": {
-            "address": Config.CREDIT_PASSPORT_NFT_ADDRESS or "not deployed",
-            "network": Config.get_rpc_url()
-        }
-    }
-    
-    # Check blockchain connection
-    try:
-        # Simple connectivity check
-        health_status["services"]["blockchain"] = "operational"
-    except:
-        health_status["services"]["blockchain"] = "degraded"
-        health_status["status"] = "degraded"
-    
-    return health_status
+    return {"message": "NeuroCred API", "version": "1.0.0"}
 
 @app.post("/api/score", response_model=ScoreResponse)
-async def generate_score(request: Request, score_request: ScoreRequest):
+async def generate_score(request: ScoreRequest):
     """Generate credit score for a wallet address and update on-chain"""
     try:
-        logger.info(f"Generating score for address: {score_request.address}")
         # Compute score
-        result = await scoring_service.compute_score(score_request.address)
+        result = await scoring_service.compute_score(request.address)
         
         # Automatically update on-chain
         tx_hash = None
@@ -141,9 +70,8 @@ async def generate_score(request: Request, score_request: ScoreRequest):
             print(f"Warning: Failed to update on-chain: {e}")
             # Continue without tx_hash
         
-        logger.info(f"Score generated: {result['score']} for {score_request.address}, tx: {tx_hash}")
         return ScoreResponse(
-            address=score_request.address,
+            address=request.address,
             score=result["score"],
             riskBand=result["riskBand"],
             explanation=result["explanation"],

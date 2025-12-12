@@ -8,8 +8,10 @@
     "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network qieTestnet",
     "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
+    "deploy:setup": "hardhat run scripts/deployAndSetup.ts --network qieTestnet",
     "verify:deployment": "hardhat run scripts/verify-deployment.ts --network qieTestnet",
-    "verify:role": "hardhat run scripts/verify-role.ts --network qieTestnet"
+    "verify:role": "hardhat run scripts/verify-role.ts --network qieTestnet",
+    "check:roles": "hardhat run scripts/checkRoles.ts --network qieTestnet"
   },
   "keywords": [],
   "author": "",

@@ -53,6 +53,11 @@ export default function Home() {
       setRiskBand(data.riskBand);
       setExplanation(data.explanation);
 
+      // Show staking boost info if available
+      if (data.stakingBoost > 0) {
+        setExplanation(`${data.explanation} (Staking boost: +${data.stakingBoost} points)`);
+      }
+
       // If txHash is returned, use it (backend automatically updated on-chain)
       if (data.transactionHash) {
         setTxHash(data.transactionHash);
@@ -125,7 +130,7 @@ export default function Home() {
                 {txHash && (
                   <div className="mt-4 text-center">
                     <a
-                      href={`https://testnet.qie.digital/tx/${txHash}`}
+                      href={`${process.env.NEXT_PUBLIC_EXPLORER_TX_URL_PREFIX || 'https://testnet.qie.digital/tx'}/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline dark:text-blue-400"
@@ -134,6 +139,26 @@ export default function Home() {
                     </a>
                   </div>
                 )}
+                <div className="mt-6 flex justify-center gap-4">
+                  <a
+                    href="/stake"
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Stake NCRD
+                  </a>
+                  <a
+                    href="/lending-demo"
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    DeFi Demo
+                  </a>
+                  <a
+                    href="/dashboard"
+                    className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Dashboard
+                  </a>
+                </div>
                 <div className="mt-6 text-center">
                   <button
                     onClick={generateScore}

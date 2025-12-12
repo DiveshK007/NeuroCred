@@ -98,7 +98,13 @@ class BlockchainService:
             # Wait for receipt
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             
-            return receipt.transactionHash.hex()
+            tx_hash_hex = receipt.transactionHash.hex()
+            
+            # Log transaction details
+            print(f"Transaction successful: {tx_hash_hex}")
+            print(f"Gas used: {receipt.gasUsed}")
+            
+            return tx_hash_hex
         except Exception as e:
             raise Exception(f"Error updating score on blockchain: {str(e)}")
 

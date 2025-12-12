@@ -4,6 +4,7 @@ from web3 import Web3
 import requests
 from models.score import WalletFeatures, ScoreResult
 from services.oracle import QIEOracleService
+from services.staking import StakingService
 
 class ScoringService:
     """AI-powered credit scoring service"""
@@ -13,28 +14,73 @@ class ScoringService:
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.explorer_url = os.getenv("QIE_EXPLORER_URL", "https://testnet.qie.digital")
         self.oracle_service = QIEOracleService()
+        self.staking_service = StakingService()
     
     async def compute_score(self, address: str) -> Dict:
-        """Compute credit score for a wallet address"""
+        """Compute credit score for a wallet address with oracle and staking integration"""
         try:
             # Fetch wallet data
             features = await self._extract_features(address)
             
-            # Compute score using rule-based algorithm
-            score, risk_band, explanation = self._calculate_score(features)
+            # Compute base score using rule-based algorithm
+            base_score, base_risk_band, base_explanation = self._calculate_score(features)
+            
+            # Get oracle price and calculate penalty
+            oracle_penalty = await self._calculate_oracle_penalty()
+            
+            # Get staking tier and boost
+            staking_tier = self.staking_service.get_integration_tier(address)
+            staking_boost = self.staking_service.calculate_staking_boost(staking_tier)
+            staked_amount = self.staking_service.get_staked_amount(address)
+            
+            # Calculate final score
+            final_score = max(0, min(1000, base_score - oracle_penalty + staking_boost))
+            
+            # Risk band can be improved by staking (if tier >= 2 and current band > 1)
+            final_risk_band = base_risk_band
+            if staking_tier >= 2 and base_risk_band > 1:
+                final_risk_band = max(1, base_risk_band - 1)
+            
+            # Build explanation
+            explanation_parts = [base_explanation]
+            if oracle_penalty > 0:
+                explanation_parts.append(f"Oracle volatility penalty: -{oracle_penalty} points")
+            if staking_boost > 0:
+                tier_names = {1: "Bronze", 2: "Silver", 3: "Gold"}
+                explanation_parts.append(f"Staking boost ({tier_names.get(staking_tier, 'Unknown')} tier): +{staking_boost} points")
+            if staking_tier >= 2 and final_risk_band < base_risk_band:
+                explanation_parts.append(f"Risk band improved by staking tier")
+            
+            explanation = ". ".join(explanation_parts)
+            
+            # Log for debugging
+            print(f"Score calculation for {address}:")
+            print(f"  Base score: {base_score}, Oracle penalty: {oracle_penalty}, Staking boost: {staking_boost}")
+            print(f"  Final score: {final_score}, Risk band: {base_risk_band} -> {final_risk_band}")
             
             return {
-                "score": score,
-                "riskBand": risk_band,
+                "score": final_score,
+                "baseScore": base_score,
+                "riskBand": final_risk_band,
                 "explanation": explanation,
+                "stakingBoost": staking_boost,
+                "oraclePenalty": oracle_penalty,
+                "stakedAmount": staked_amount,
+                "stakingTier": staking_tier,
                 "features": features.__dict__ if features else None
             }
         except Exception as e:
             # Return default score on error
+            print(f"Error computing score: {e}")
             return {
                 "score": 500,
+                "baseScore": 500,
                 "riskBand": 2,
-                "explanation": f"Error computing score: {str(e)}"
+                "explanation": f"Error computing score: {str(e)}",
+                "stakingBoost": 0,
+                "oraclePenalty": 0,
+                "stakedAmount": 0,
+                "stakingTier": 0
             }
     
     async def _extract_features(self, address: str) -> WalletFeatures:
@@ -160,4 +206,35 @@ class ScoringService:
             explanation = "High risk: Very low score, limited history"
         
         return score, risk_band, explanation
+    
+    async def _calculate_oracle_penalty(self) -> int:
+        """
+        Calculate penalty based on oracle volatility
+        For demo: simple rule based on price stability
+        """
+        try:
+            oracle_address = os.getenv("QIE_ORACLE_USD_ADDR")
+            if not oracle_address or oracle_address == "0x0000000000000000000000000000000000000000":
+                return 0
+            
+            # Fetch current price
+            current_price = await self.oracle_service.fetchOraclePrice(oracle_address)
+            if not current_price:
+                return 0
+            
+            # For demo: simple volatility check
+            # In production, would compare against historical prices
+            # For now, return small penalty if price seems volatile (placeholder logic)
+            # This is a simplified demo - real implementation would track price history
+            volatility = await self.oracle_service.get_volatility('ETH', days=30)
+            
+            if volatility and volatility > 0.3:
+                return 50  # High volatility penalty
+            elif volatility and volatility > 0.2:
+                return 25  # Medium volatility penalty
+            else:
+                return 0   # Low volatility, no penalty
+        except Exception as e:
+            print(f"Error calculating oracle penalty: {e}")
+            return 0
 

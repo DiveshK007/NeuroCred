@@ -4,9 +4,19 @@ interface ScoreDisplayProps {
   score: number;
   riskBand: number;
   explanation: string;
+  baseScore?: number;
+  stakingBoost?: number;
+  oraclePenalty?: number;
 }
 
-export default function ScoreDisplay({ score, riskBand, explanation }: ScoreDisplayProps) {
+export default function ScoreDisplay({ 
+  score, 
+  riskBand, 
+  explanation,
+  baseScore,
+  stakingBoost,
+  oraclePenalty
+}: ScoreDisplayProps) {
   const getRiskColor = (band: number) => {
     switch (band) {
       case 1: return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
@@ -85,6 +95,37 @@ export default function ScoreDisplay({ score, riskBand, explanation }: ScoreDisp
       <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
         <p className="text-sm text-gray-700 dark:text-gray-300">{explanation}</p>
       </div>
+
+      {/* Score Breakdown (if available) */}
+      {(stakingBoost !== undefined && stakingBoost > 0) || (oraclePenalty !== undefined && oraclePenalty > 0) ? (
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+          <h3 className="font-semibold mb-2 text-sm">Score Breakdown</h3>
+          <div className="space-y-1 text-xs">
+            {baseScore !== undefined && (
+              <div className="flex justify-between">
+                <span>Base Score:</span>
+                <span className="font-semibold">{baseScore}</span>
+              </div>
+            )}
+            {oraclePenalty !== undefined && oraclePenalty > 0 && (
+              <div className="flex justify-between text-red-600">
+                <span>Oracle Penalty:</span>
+                <span>-{oraclePenalty}</span>
+              </div>
+            )}
+            {stakingBoost !== undefined && stakingBoost > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Staking Boost:</span>
+                <span>+{stakingBoost}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold pt-1 border-t border-blue-200 dark:border-blue-700">
+              <span>Final Score:</span>
+              <span>{score}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

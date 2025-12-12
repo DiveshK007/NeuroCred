@@ -15,13 +15,16 @@
 ## 📋 Contracts
 
 - **CreditPassportNFT (Testnet)**: `0xYourContractAddress` *(Add after deployment)*
+- **LendingVault (Q-Loan)**: `0xYourVaultAddress` *(Add after deployment)*
+- **DemoLender**: `0xYourLenderAddress` *(Add after deployment)*
 - **Example mint tx**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
 
 ## ✅ How I Meet QIE Requirements
 
 - ✅ **Wallet integration**: MetaMask / QIE Wallet (connect + sign)
-- ✅ **Smart contract deployed on QIE Testnet**: address above
-- ✅ **On-chain functionality**: `mintOrUpdate` called by backend (tx link above)
+- ✅ **Smart contract deployed on QIE Testnet**: CreditPassportNFT + LendingVault
+- ✅ **On-chain functionality**: `mintOrUpdate` + `createLoan` transactions on QIE
+- ✅ **AI × Blockchain**: Chat-driven loan negotiation with on-chain settlement
 
 > **Note**: We have rotated any keys and verified no secrets exist in repo history.
 
@@ -35,6 +38,8 @@ NeuroCred solves the problem of blind lending in DeFi by providing portable, on-
 
 - 🤖 **AI-Powered Scoring** - Analyzes transaction history, portfolio composition, and on-chain behavior
 - 🔒 **Soulbound NFT** - Non-transferable Credit Passport stores score on-chain
+- 💬 **AI Chat Negotiation** - Chat with Q-Loan AI to negotiate personalized loan terms
+- 🏦 **LendingVault** - On-chain lending with EIP-712 signature verification
 - 🔌 **Universal Integration** - Simple contract interface for any dApp
 - ⚡ **QIE Optimized** - Built for QIE's 25,000+ TPS and near-zero fees
 - 📊 **QIE Oracles** - Real-time price and volatility data integration

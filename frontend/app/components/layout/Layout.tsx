@@ -57,9 +57,9 @@ export function Layout({ children }: LayoutProps) {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="absolute top-0 left-0 w-[800px] h-[800px] opacity-30"
+          className="absolute top-0 left-0 w-[800px] h-[800px] opacity-20"
           style={{
-            background: "radial-gradient(ellipse at center, hsl(190, 100%, 50%, 0.15) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse at center, hsl(190, 70%, 35%, 0.08) 0%, transparent 70%)",
           }}
         />
         <motion.div
@@ -73,14 +73,15 @@ export function Layout({ children }: LayoutProps) {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="absolute bottom-0 right-0 w-[800px] h-[800px] opacity-30"
+          className="absolute bottom-0 right-0 w-[800px] h-[800px] opacity-20"
           style={{
-            background: "radial-gradient(ellipse at center, hsl(262, 83%, 58%, 0.15) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse at center, hsl(262, 60%, 45%, 0.08) 0%, transparent 70%)",
           }}
         />
         
-        {/* Grid overlay */}
-        <div className="absolute inset-0 grid-pattern opacity-30" />
+        {/* Enhanced Grid overlay with multiple layers */}
+        <div className="absolute inset-0 grid-pattern opacity-40" />
+        <div className="absolute inset-0 grid-pattern-dense opacity-20" />
         
         {/* Noise texture */}
         <div className="absolute inset-0 noise" />

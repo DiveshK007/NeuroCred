@@ -80,9 +80,9 @@ export default function ScoreDisplay({
         <svg className="w-full h-full" viewBox="0 0 200 120" style={{ filter: `drop-shadow(0 0 20px ${riskInfo.glow})` }}>
           <defs>
             <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#00d4ff" />
-              <stop offset="50%" stopColor="#7c3aed" />
-              <stop offset="100%" stopColor="#00d4ff" />
+              <stop offset="0%" stopColor="hsl(190, 70%, 35%)" />
+              <stop offset="50%" stopColor="hsl(262, 60%, 45%)" />
+              <stop offset="100%" stopColor="hsl(190, 70%, 35%)" />
             </linearGradient>
             <filter id="glow">
               <feGaussianBlur stdDeviation="3" result="coloredBlur"/>

@@ -158,8 +158,8 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
             <svg className="w-full h-full" viewBox="0 0 200 120">
               <defs>
                 <linearGradient id="ltvGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#00d4ff" />
-                  <stop offset="100%" stopColor="#7c3aed" />
+                  <stop offset="0%" stopColor="hsl(190, 70%, 35%)" />
+                  <stop offset="100%" stopColor="hsl(262, 60%, 45%)" />
                 </linearGradient>
               </defs>
               <path

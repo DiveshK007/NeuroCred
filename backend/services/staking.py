@@ -11,18 +11,29 @@ class StakingService:
     def __init__(self):
         self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
-        self.staking_address = os.getenv("STAKING_ADDRESS")
+        self.staking_address = os.getenv("STAKING_ADDRESS", "").strip()
         
-        if not self.staking_address:
+        # Check if address is set and not a placeholder
+        if (not self.staking_address or 
+            self.staking_address.startswith("0xYour") or 
+            self.staking_address == "0x0000000000000000000000000000000000000000" or
+            "Your" in self.staking_address or
+            "YOUR" in self.staking_address):
             # Staking is optional - service will return defaults if not configured
             self.staking_abi = self._get_staking_abi()
             self.staking_contract = None
+            self.staking_address = None
         else:
-            self.staking_abi = self._get_staking_abi()
-            self.staking_contract = self.w3.eth.contract(
-                address=Web3.to_checksum_address(self.staking_address),
-                abi=self.staking_abi
-            )
+            try:
+                self.staking_abi = self._get_staking_abi()
+                self.staking_contract = self.w3.eth.contract(
+                    address=Web3.to_checksum_address(self.staking_address),
+                    abi=self.staking_abi
+                )
+            except Exception as e:
+                print(f"Warning: Invalid staking address '{self.staking_address}': {e}. Staking disabled.")
+                self.staking_contract = None
+                self.staking_address = None
     
     def _get_staking_abi(self) -> list:
         """Get NeuroCredStaking contract ABI"""

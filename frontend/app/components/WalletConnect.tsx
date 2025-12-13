@@ -18,21 +18,9 @@ export default function WalletConnect({ onConnect, onDisconnect }: WalletConnect
   }, []);
 
   const checkConnection = async () => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const accounts = await provider.listAccounts();
-        if (accounts.length > 0) {
-          const signer = await provider.getSigner();
-          const addr = await signer.getAddress();
-          setAddress(addr);
-          updateBalance(provider, addr);
-          onConnect(addr, provider);
-        }
-      } catch (error) {
-        console.error('Error checking connection:', error);
-      }
-    }
+    // Don't auto-connect - always require user to click "Connect Wallet"
+    // This ensures MetaMask popup appears
+    return;
   };
 
   const updateBalance = async (provider: ethers.BrowserProvider, addr: string) => {

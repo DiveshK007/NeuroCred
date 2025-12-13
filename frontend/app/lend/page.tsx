@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import WalletConnect from '../components/WalletConnect';
+import { Layout } from '@/components/layout/Layout';
 import ChatConsole from '../components/ChatConsole';
 import ScoreDisplay from '../components/ScoreDisplay';
-import Sidebar from '../components/Sidebar';
+import { Button } from '@/components/ui/button';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { Wallet } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const LENDING_VAULT_ADDRESS = process.env.NEXT_PUBLIC_LENDING_VAULT_ADDRESS;
@@ -28,16 +30,41 @@ export default function LendPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [balance, setBalance] = useState<string>('0');
 
-  const handleConnect = async (addr: string, prov: ethers.BrowserProvider) => {
-    setAddress(addr);
-    setProvider(prov);
-    loadScore(addr);
-    loadActiveLoans(addr, prov);
-    try {
-      const bal = await prov.getBalance(addr);
-      setBalance(ethers.formatEther(bal));
-    } catch (e) {
-      console.error('Error fetching balance:', e);
+  const handleConnect = async (addr?: string, prov?: ethers.BrowserProvider) => {
+    if (!addr || !prov) {
+      // Manual connect
+      if (typeof window === 'undefined' || !window.ethereum) {
+        alert('Please install MetaMask or QIE Wallet!');
+        return;
+      }
+      try {
+        const { ethers } = await import('ethers');
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send('eth_requestAccounts', []);
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setAddress(address);
+        setProvider(provider);
+        loadScore(address);
+        loadActiveLoans(address, provider);
+        const bal = await provider.getBalance(address);
+        setBalance(ethers.formatEther(bal));
+      } catch (error) {
+        console.error('Error connecting wallet:', error);
+        alert('Failed to connect wallet');
+      }
+    } else {
+      // Called with params
+      setAddress(addr);
+      setProvider(prov);
+      loadScore(addr);
+      loadActiveLoans(addr, prov);
+      try {
+        const bal = await prov.getBalance(addr);
+        setBalance(ethers.formatEther(bal));
+      } catch (e) {
+        console.error('Error fetching balance:', e);
+      }
     }
   };
 
@@ -124,71 +151,86 @@ export default function LendPage() {
     return () => window.removeEventListener('acceptOffer', handleAccept);
   }, [address, provider]);
 
+  useEffect(() => {
+    // Auto-connect wallet if available
+    const connectWallet = async () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        try {
+          const { ethers } = await import('ethers');
+          const prov = new ethers.BrowserProvider(window.ethereum);
+          await prov.send('eth_requestAccounts', []);
+          const signer = await prov.getSigner();
+          const addr = await signer.getAddress();
+          handleConnect(addr, prov);
+        } catch (error) {
+          console.error('Error auto-connecting wallet:', error);
+        }
+      }
+    };
+    connectWallet();
+  }, []);
+
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="gradient-mesh"></div>
-      <div className="grid-pattern absolute inset-0 opacity-30"></div>
-
-      {/* Sidebar */}
-      <Sidebar 
-        address={address} 
-        balance={balance}
-        onConnect={() => address && provider ? null : null}
-        onDisconnect={handleDisconnect}
-      />
-
-      {/* Main Content */}
-      <main className="lg:ml-64 min-h-screen">
-        <div className="container mx-auto px-4 py-16">
-          <div className="text-center mb-12 animate-fade-in">
-            <h1 className="text-5xl font-bold gradient-text mb-4">
-              Q-Loan: AI-Negotiated Lending
-            </h1>
-            <p className="text-xl text-text-secondary mb-8">
-              Chat with AI to get personalized loan terms based on your NeuroCred score
-            </p>
-            {!address && (
-              <div className="flex justify-center">
-                <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
-              </div>
-            )}
+    <Layout>
+      <div className="min-h-screen px-8 lg:px-16 py-12">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-gradient mb-2">Q-Loan: AI-Negotiated Lending</h1>
+            <p className="text-muted-foreground">Chat with AI to get personalized loan terms based on your NeuroCred score</p>
           </div>
 
-          {address ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          {!address ? (
+            <div className="max-w-md mx-auto">
+              <GlassCard className="text-center p-12">
+                <div className="text-6xl mb-6">💬</div>
+                <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
+                <p className="text-muted-foreground mb-8">
+                  Connect your wallet to start chatting with Q-Loan AI
+                </p>
+                <Button onClick={() => {
+                  if (typeof window !== 'undefined' && window.ethereum) {
+                    handleConnect();
+                  } else {
+                    alert('Please install MetaMask or QIE Wallet!');
+                  }
+                }} variant="glow" size="lg">
+                  <Wallet className="w-5 h-5" />
+                  Connect Wallet
+                </Button>
+              </GlassCard>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column: Score & Active Loans */}
               <div className="space-y-6">
                 {/* Score Display */}
                 {score !== null && (
-                  <div className="animate-fade-in">
-                    <ScoreDisplay
-                      score={score}
-                      riskBand={riskBand || 0}
-                      explanation={explanation}
-                    />
-                  </div>
+                  <ScoreDisplay
+                    score={score}
+                    riskBand={riskBand || 0}
+                    explanation={explanation}
+                  />
                 )}
 
                 {/* Active Loans */}
                 {activeLoans.length > 0 && (
-                  <div className="glass rounded-xl p-6 animate-fade-in">
-                    <h2 className="text-xl font-bold mb-4 text-white">Active Loans</h2>
+                  <GlassCard>
+                    <h2 className="text-xl font-bold mb-4">Active Loans</h2>
                     <div className="space-y-3">
                       {activeLoans.map((loan) => (
-                        <div key={loan.id} className="glass-hover rounded-lg p-4 border border-white/10">
+                        <div key={loan.id} className="glass-hover rounded-lg p-4 border border-border/50">
                           <div className="flex justify-between items-center">
-                            <span className="text-sm text-text-secondary">
+                            <span className="text-sm text-muted-foreground">
                               Loan #{loan.id}
                             </span>
-                            <span className="font-mono font-semibold text-white">
+                            <span className="font-mono font-semibold">
                               {loan.totalOwed} QIE
                             </span>
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </GlassCard>
                 )}
               </div>
 
@@ -199,18 +241,9 @@ export default function LendPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="glass rounded-2xl p-12 text-center max-w-md mx-auto animate-fade-in">
-              <div className="text-6xl mb-6">💬</div>
-              <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
-              <p className="text-text-secondary mb-8">
-                Connect your wallet to start chatting with Q-Loan AI
-              </p>
-              <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
-            </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 }

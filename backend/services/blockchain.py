@@ -10,7 +10,7 @@ class BlockchainService:
     """Service for interacting with QIE blockchain"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
+        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.contract_address = os.getenv("CREDIT_PASSPORT_NFT_ADDRESS")
         self.private_key = os.getenv("BACKEND_PRIVATE_KEY")
@@ -92,8 +92,9 @@ class BlockchainService:
             # Sign transaction
             signed_txn = self.account.sign_transaction(transaction)
             
-            # Send transaction
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Send transaction (use raw_transaction for newer web3.py, fallback to rawTransaction for older)
+            raw_tx = getattr(signed_txn, 'raw_transaction', None) or getattr(signed_txn, 'rawTransaction', None)
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for receipt
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)

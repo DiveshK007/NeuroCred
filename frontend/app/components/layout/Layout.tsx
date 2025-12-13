@@ -79,8 +79,24 @@ export function Layout({ children }: LayoutProps) {
           }}
         />
         
-        {/* Grid overlay - subtle as per GitHub version */}
-        <div className="absolute inset-0 grid-pattern opacity-30" />
+        {/* Enhanced Grid overlay with visible colored lines */}
+        <div className="absolute inset-0 grid-pattern opacity-60" />
+        <div className="absolute inset-0 grid-pattern-dense opacity-30" />
+        
+        {/* Subtle diagonal grid accent */}
+        <div 
+          className="absolute inset-0 opacity-15"
+          style={{
+            backgroundImage: `repeating-linear-gradient(
+              45deg,
+              transparent,
+              transparent 2px,
+              hsl(var(--primary) / 0.08) 2px,
+              hsl(var(--primary) / 0.08) 4px
+            )`,
+            backgroundSize: '40px 40px'
+          }}
+        />
         
         {/* Noise texture */}
         <div className="absolute inset-0 noise" />

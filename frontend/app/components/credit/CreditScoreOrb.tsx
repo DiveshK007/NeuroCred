@@ -161,7 +161,7 @@ export function CreditScoreOrb({
             initial={{ strokeDashoffset: 440 }}
             animate={controls}
             style={{
-              filter: "drop-shadow(0 0 8px hsl(var(--primary) / 0.4))"
+              filter: "drop-shadow(0 0 8px hsl(var(--primary) / 0.5))"
             }}
           />
         </svg>

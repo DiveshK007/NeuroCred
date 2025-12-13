@@ -14,6 +14,7 @@ import {
   LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NeuroCredLogo } from "@/components/NeuroCredLogo";
 
 interface NavItem {
   icon: React.ElementType;
@@ -77,20 +78,27 @@ export function Sidebar({
       >
         {/* Logo */}
         <div className="p-4 border-b border-border/30">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center flex-shrink-0">
-              <span className="text-xl font-bold text-primary-foreground">N</span>
-            </div>
-            <AnimatePresence>
-              {isExpanded && (
+          <Link href="/" className="flex items-center">
+            <AnimatePresence mode="wait">
+              {isExpanded ? (
                 <motion.div
+                  key="expanded"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  className="overflow-hidden"
+                  className="w-full"
                 >
-                  <h1 className="text-lg font-bold text-gradient whitespace-nowrap">NeuroCred</h1>
-                  <p className="text-xs text-muted-foreground whitespace-nowrap">Credit Passport</p>
+                  <NeuroCredLogo size="md" showText={true} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="collapsed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="w-full flex justify-center"
+                >
+                  <NeuroCredLogo size="sm" showText={false} />
                 </motion.div>
               )}
             </AnimatePresence>

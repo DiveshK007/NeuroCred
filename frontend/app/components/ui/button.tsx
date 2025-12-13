@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_25px_hsl(var(--primary)/0.25)]",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_30px_hsl(var(--primary)/0.4)]",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
@@ -18,9 +18,9 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-muted hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        gradient: "bg-gradient-primary text-primary-foreground font-semibold hover:shadow-[0_0_30px_hsl(var(--primary)/0.3)] hover:-translate-y-0.5 active:translate-y-0",
+        gradient: "bg-gradient-primary text-primary-foreground font-semibold hover:shadow-[0_0_40px_hsl(var(--primary)/0.5)] hover:-translate-y-0.5 active:translate-y-0",
         glass: "glass border border-border/50 text-foreground hover:border-primary/50 hover:bg-muted/50",
-        glow: "bg-gradient-primary text-primary-foreground font-semibold shadow-[0_0_30px_hsl(var(--primary)/0.2)] hover:shadow-[0_0_40px_hsl(var(--primary)/0.3)] hover:-translate-y-1 active:translate-y-0",
+        glow: "bg-gradient-primary text-primary-foreground font-semibold shadow-[0_0_30px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_50px_hsl(var(--primary)/0.5)] hover:-translate-y-1 active:translate-y-0",
       },
       size: {
         default: "h-10 px-4 py-2",

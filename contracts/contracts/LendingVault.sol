@@ -74,7 +74,8 @@ contract LendingVault is Ownable {
         address owner_
     ) Ownable(owner_) {
         require(_neuroCred != address(0), "Invalid NeuroCred");
-        require(_loanToken != address(0), "Invalid loan token");
+        // Allow address(0) for native token (QIE)
+        // require(_loanToken != address(0), "Invalid loan token");
         require(_aiSigner != address(0), "Invalid AI signer");
         
         neuroCred = INeuroCredScore(_neuroCred);

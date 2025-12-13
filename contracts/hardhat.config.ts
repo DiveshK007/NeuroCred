@@ -16,8 +16,8 @@ const config: HardhatUserConfig = {
   },
   networks: {
     qieTestnet: {
-      url: process.env.QIE_TESTNET_RPC_URL || "https://testnet.qie.digital",
-      chainId: parseInt(process.env.QIE_TESTNET_CHAIN_ID || "1337"),
+      url: process.env.QIE_TESTNET_RPC_URL || "https://rpc1testnet.qie.digital/",
+      chainId: parseInt(process.env.QIE_TESTNET_CHAIN_ID || "1983"),
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
     hardhat: {

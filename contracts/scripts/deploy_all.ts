@@ -62,6 +62,7 @@ async function main() {
 
     // 4. Deploy LendingVault (Q-Loan)
     console.log("\n📝 [4/4] Deploying LendingVault...");
+    const backendAddress = process.env.BACKEND_ADDRESS || process.env.BACKEND_WALLET_ADDRESS;
     const aiSignerAddress = process.env.AI_SIGNER_ADDRESS || backendAddress || deployer.address;
     const loanTokenAddress = process.env.LOAN_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000"; // Native QIE
     
@@ -77,7 +78,6 @@ async function main() {
     console.log("✅ LendingVault deployed to:", vaultAddress);
 
     // Grant SCORE_UPDATER_ROLE to backend if address is provided
-    const backendAddress = process.env.BACKEND_ADDRESS || process.env.BACKEND_WALLET_ADDRESS;
     if (backendAddress && ethers.isAddress(backendAddress)) {
       console.log("\n🔐 Granting SCORE_UPDATER_ROLE to backend...");
       const SCORE_UPDATER_ROLE = await passportNFT.SCORE_UPDATER_ROLE();

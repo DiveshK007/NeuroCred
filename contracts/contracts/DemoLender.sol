@@ -42,7 +42,6 @@ contract DemoLender {
             ltvBps = 0; // No passport or unknown risk
         }
 
-        emit LTVQueried(user, ltvBps, scoreView.riskBand);
         return ltvBps;
     }
 

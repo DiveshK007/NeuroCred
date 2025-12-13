@@ -1,23 +1,27 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
-import { JetBrains_Mono } from "next/font/google";
+import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Providers } from "./providers";
 
 const outfit = Outfit({
-  variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-outfit",
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "NeuroCred - AI Credit Passport on QIE",
-  description: "AI-powered on-chain credit passport (soulbound NFT) for reusable risk scores in DeFi on QIE Blockchain",
+  description: "AI-powered on-chain credit scoring for the QIE blockchain ecosystem",
 };
 
 export default function RootLayout({
@@ -26,11 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${outfit.variable} ${jetbrainsMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${outfit.variable} ${jetbrainsMono.variable} font-outfit`}>
+        <Providers>
+          {children}
+        </Providers>
+        <Toaster />
+        <Sonner />
       </body>
     </html>
   );

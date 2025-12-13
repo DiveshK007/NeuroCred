@@ -1,299 +1,238 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
-import Link from 'next/link';
-import WalletConnect from '../components/WalletConnect';
-import ScoreDisplay from '../components/ScoreDisplay';
-import Sidebar from '../components/Sidebar';
+import { motion } from "framer-motion";
+import { 
+  Radio, 
+  TrendingUp, 
+  Lock, 
+  Wallet, 
+  RefreshCw,
+  ArrowRight,
+  MessageSquare,
+  Coins
+} from "lucide-react";
+import Link from "next/link";
+import { Layout } from "@/components/layout/Layout";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { Button } from "@/components/ui/button";
+import { CreditScoreOrb } from "@/components/credit/CreditScoreOrb";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const statsData = [
+  {
+    icon: Radio,
+    label: "Oracle Price",
+    value: "$2.45",
+    subtext: "QIE/USD",
+    live: true,
+  },
+  {
+    icon: TrendingUp,
+    label: "Staking Tier",
+    value: "Silver",
+    subtext: "+5% Boost",
+    color: "text-primary",
+  },
+  {
+    icon: Lock,
+    label: "Staked Amount",
+    value: "5,000",
+    subtext: "NCRD",
+  },
+  {
+    icon: Wallet,
+    label: "Wallet Balance",
+    value: "1,234.56",
+    subtext: "QIE",
+  },
+];
+
+const quickActions = [
+  { icon: Lock, label: "Stake NCRD", path: "/stake" },
+  { icon: Coins, label: "DeFi Demo", path: "/lending-demo" },
+  { icon: MessageSquare, label: "Q-Loan Chat", path: "/lend" },
+];
 
 export default function Dashboard() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [score, setScore] = useState<number | null>(null);
-  const [baseScore, setBaseScore] = useState<number | null>(null);
-  const [riskBand, setRiskBand] = useState<number | null>(null);
-  const [explanation, setExplanation] = useState<string>('');
-  const [stakingBoost, setStakingBoost] = useState<number>(0);
-  const [oraclePenalty, setOraclePenalty] = useState<number>(0);
-  const [stakedAmount, setStakedAmount] = useState<number>(0);
-  const [stakingTier, setStakingTier] = useState<number>(0);
-  const [oraclePrice, setOraclePrice] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [balance, setBalance] = useState<string>('0');
+  return (
+    <Layout>
+      <div className="min-h-screen px-8 lg:px-16 py-12">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-12"
+          >
+            <h1 className="text-4xl font-bold text-gradient mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Your NeuroCred overview</p>
+          </motion.div>
 
-  const handleConnect = async (addr: string, prov: ethers.BrowserProvider) => {
-    setAddress(addr);
-    setProvider(prov);
-    loadScore(addr);
-    try {
-      const bal = await prov.getBalance(addr);
-      setBalance(ethers.formatEther(bal));
-    } catch (e) {
-      console.error('Error fetching balance:', e);
-    }
-  };
+          {/* Stats Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12"
+          >
+            {statsData.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + index * 0.05 }}
+              >
+                <GlassCard className="h-full">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <stat.icon className="w-5 h-5 text-primary" />
+                    </div>
+                    {stat.live && (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                        <span className="text-xs text-success">Live</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
+                  <p className={`text-2xl font-bold font-mono ${stat.color || "text-foreground"}`}>
+                    {stat.value}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{stat.subtext}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </motion.div>
 
-  const handleDisconnect = () => {
-    setAddress(null);
-    setProvider(null);
-    setScore(null);
-    setRiskBand(null);
-    setExplanation('');
-    setBaseScore(null);
-    setStakingBoost(0);
-    setOraclePenalty(0);
-    setStakedAmount(0);
-    setStakingTier(0);
-    setBalance('0');
-  };
+          {/* Main Content Grid */}
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Score Section */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="lg:col-span-2"
+            >
+              <GlassCard variant="glow" className="h-full">
+                <div className="flex flex-col items-center py-8">
+                  <h2 className="text-xl font-semibold mb-8">Your Credit Score</h2>
+                  <CreditScoreOrb score={782} size="lg" />
+                  
+                  <div className="mt-12 w-full max-w-md">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-4">Score Breakdown</h3>
+                    <div className="space-y-4">
+                      <ScoreBreakdownItem label="Base Score" value={720} max={800} color="from-primary to-secondary" />
+                      <ScoreBreakdownItem label="Staking Boost" value={62} max={200} color="from-success to-primary" isBoost />
+                      <ScoreBreakdownItem label="Oracle Penalty" value={0} max={100} color="from-destructive to-warning" isPenalty />
+                    </div>
+                  </div>
 
-  const loadScore = async (addr: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/score/${addr}`);
-      if (response.ok) {
-        const data = await response.json();
-        setScore(data.score);
-        setBaseScore(data.baseScore || data.score);
-        setRiskBand(data.riskBand);
-        setExplanation(data.explanation);
-        setStakingBoost(data.stakingBoost || 0);
-        setOraclePenalty(data.oraclePenalty || 0);
-        setStakedAmount(data.stakedAmount || 0);
-        setStakingTier(data.stakingTier || 0);
-      }
-    } catch (error) {
-      console.error('Error loading score:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+                  <Button variant="glass" size="lg" className="mt-8">
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh Score
+                  </Button>
+                </div>
+              </GlassCard>
+            </motion.div>
 
-  const loadOraclePrice = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/oracle/price`);
-      if (response.ok) {
-        const data = await response.json();
-        setOraclePrice(data.price);
-      }
-    } catch (error) {
-      console.error('Error loading oracle price:', error);
-    }
-  };
+            {/* Quick Actions Sidebar */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="space-y-6"
+            >
+              <GlassCard>
+                <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+                <div className="space-y-3">
+                  {quickActions.map((action) => (
+                    <Link key={action.label} href={action.path}>
+                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <action.icon className="w-5 h-5 text-primary" />
+                          <span className="font-medium">{action.label}</span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </GlassCard>
 
-  useEffect(() => {
-    if (address) {
-      loadOraclePrice();
-      const interval = setInterval(loadOraclePrice, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [address]);
+              <GlassCard variant="gradient-border">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
+                    <Lock className="w-5 h-5 text-success" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Staking Active</p>
+                    <p className="text-xs text-muted-foreground">Silver tier benefits</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount Staked</span>
+                    <span className="font-mono">5,000 NCRD</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Score Boost</span>
+                    <span className="font-mono text-success">+5%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Next Tier</span>
+                    <span className="font-mono text-primary">Gold (10K)</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                    <span>Progress to Gold</span>
+                    <span>50%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: "50%" }}
+                      transition={{ delay: 0.5, duration: 1 }}
+                      className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
+                    />
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
 
-  const getTierInfo = (tier: number) => {
-    switch (tier) {
-      case 1: return { name: 'Bronze', color: 'from-amber-500 to-orange-500', icon: '🥉' };
-      case 2: return { name: 'Silver', color: 'from-gray-400 to-gray-500', icon: '🥈' };
-      case 3: return { name: 'Gold', color: 'from-yellow-400 to-amber-500', icon: '🥇' };
-      default: return { name: 'None', color: 'from-gray-600 to-gray-700', icon: '⚪' };
-    }
-  };
+interface ScoreBreakdownItemProps {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+  isBoost?: boolean;
+  isPenalty?: boolean;
+}
+
+function ScoreBreakdownItem({ label, value, max, color, isBoost, isPenalty }: ScoreBreakdownItemProps) {
+  const percentage = (value / max) * 100;
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="gradient-mesh"></div>
-      <div className="grid-pattern absolute inset-0 opacity-30"></div>
-
-      {/* Sidebar */}
-      <Sidebar 
-        address={address} 
-        balance={balance}
-        onConnect={() => address && provider ? null : null}
-        onDisconnect={handleDisconnect}
-      />
-
-      {/* Main Content */}
-      <main className="lg:ml-64 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8 animate-fade-in">
-            <div>
-              <h1 className="text-4xl font-bold gradient-text mb-2">Dashboard</h1>
-              <p className="text-text-secondary">Your NeuroCred overview</p>
-            </div>
-            <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
-          </div>
-
-          {address ? (
-            <div className="space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Oracle Price Card */}
-                <div className="glass-hover rounded-xl p-6 animate-slide-up">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-2xl">📡</div>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  </div>
-                  <h3 className="text-sm text-text-secondary mb-2">Oracle Price</h3>
-                  {oraclePrice !== null ? (
-                    <p className="text-2xl font-bold text-white font-mono">
-                      ${oraclePrice.toFixed(4)}
-                    </p>
-                  ) : (
-                    <p className="text-text-secondary text-sm">Loading...</p>
-                  )}
-                  <p className="text-xs text-text-muted mt-1">QIE/USD</p>
-                </div>
-
-                {/* Staking Tier Card */}
-                <div className="glass-hover rounded-xl p-6 animate-slide-up stagger-1">
-                  <div className="text-2xl mb-4">{getTierInfo(stakingTier).icon}</div>
-                  <h3 className="text-sm text-text-secondary mb-2">Staking Tier</h3>
-                  <p className={`text-2xl font-bold bg-gradient-to-r ${getTierInfo(stakingTier).color} bg-clip-text text-transparent`}>
-                    {getTierInfo(stakingTier).name}
-                  </p>
-                  {stakingTier > 0 && (
-                    <p className="text-xs text-green-400 mt-1">+{stakingBoost} boost</p>
-                  )}
-                </div>
-
-                {/* Staked Amount Card */}
-                <div className="glass-hover rounded-xl p-6 animate-slide-up stagger-2">
-                  <div className="text-2xl mb-4">🔒</div>
-                  <h3 className="text-sm text-text-secondary mb-2">Staked Amount</h3>
-                  <p className="text-2xl font-bold text-white font-mono">
-                    {stakedAmount > 0 ? (stakedAmount / 1e18).toFixed(2) : '0.00'}
-                  </p>
-                  <p className="text-xs text-text-muted mt-1">NCRD</p>
-                </div>
-
-                {/* Balance Card */}
-                <div className="glass-hover rounded-xl p-6 animate-slide-up stagger-3">
-                  <div className="text-2xl mb-4">💰</div>
-                  <h3 className="text-sm text-text-secondary mb-2">Wallet Balance</h3>
-                  <p className="text-2xl font-bold text-white font-mono">
-                    {parseFloat(balance).toFixed(4)}
-                  </p>
-                  <p className="text-xs text-text-muted mt-1">QIE</p>
-                </div>
-              </div>
-
-              {/* Main Score Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Score Display */}
-                <div className="lg:col-span-2">
-                  {isLoading ? (
-                    <div className="glass rounded-2xl p-12 text-center">
-                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
-                      <p className="mt-4 text-text-secondary">Loading score...</p>
-                    </div>
-                  ) : score !== null ? (
-                    <div className="animate-fade-in">
-                      <ScoreDisplay
-                        score={score}
-                        riskBand={riskBand || 0}
-                        explanation={explanation}
-                        baseScore={baseScore || undefined}
-                        stakingBoost={stakingBoost}
-                        oraclePenalty={oraclePenalty}
-                      />
-                    </div>
-                  ) : (
-                    <div className="glass rounded-2xl p-12 text-center">
-                      <p className="text-text-secondary mb-4">
-                        No score found. Generate your credit passport first.
-                      </p>
-                      <Link
-                        href="/"
-                        className="btn-gradient px-6 py-3 rounded-lg font-semibold inline-block"
-                      >
-                        Go to Home
-                      </Link>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sidebar Actions */}
-                <div className="space-y-6">
-                  {/* Quick Actions */}
-                  <div className="glass rounded-xl p-6">
-                    <h3 className="font-semibold mb-4 text-white">Quick Actions</h3>
-                    <div className="space-y-3">
-                      <Link
-                        href="/stake"
-                        className="block w-full px-4 py-3 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 border border-cyan-500/30 rounded-lg text-center text-sm font-medium text-white transition-all"
-                      >
-                        Stake NCRD
-                      </Link>
-                      <Link
-                        href="/lending-demo"
-                        className="block w-full px-4 py-3 bg-gradient-to-r from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 border border-green-500/30 rounded-lg text-center text-sm font-medium text-white transition-all"
-                      >
-                        DeFi Demo
-                      </Link>
-                      <Link
-                        href="/lend"
-                        className="block w-full px-4 py-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-lg text-center text-sm font-medium text-white transition-all"
-                      >
-                        Q-Loan Chat
-                      </Link>
-                      <button
-                        onClick={() => address && loadScore(address)}
-                        className="w-full px-4 py-3 glass-hover rounded-lg text-sm font-medium text-white transition-all"
-                      >
-                        Refresh Score
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Staking Status */}
-                  {stakingTier > 0 && (
-                    <div className="glass rounded-xl p-6 animate-fade-in">
-                      <h3 className="font-semibold mb-4 text-white">Staking Status</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-text-secondary text-sm">Tier</span>
-                          <span className={`font-semibold bg-gradient-to-r ${getTierInfo(stakingTier).color} bg-clip-text text-transparent`}>
-                            {getTierInfo(stakingTier).name}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-text-secondary text-sm">Staked</span>
-                          <span className="font-mono font-semibold text-white">
-                            {stakedAmount > 0 ? (stakedAmount / 1e18).toFixed(2) : '0'} NCRD
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                          <span className="text-text-secondary text-sm">Boost</span>
-                          <span className="font-semibold text-green-400">+{stakingBoost} pts</span>
-                        </div>
-                      </div>
-                      <Link
-                        href="/stake"
-                        className="mt-4 block w-full px-4 py-2 btn-gradient rounded-lg text-center text-sm font-semibold"
-                      >
-                        Manage Staking
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="glass rounded-2xl p-12 text-center animate-fade-in">
-              <div className="text-6xl mb-6">🔐</div>
-              <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
-              <p className="text-text-secondary mb-8">
-                Please connect your wallet to view your dashboard
-              </p>
-              <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
-            </div>
-          )}
-        </div>
-      </main>
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={`font-mono ${isBoost ? "text-success" : isPenalty ? "text-destructive" : ""}`}>
+          {isBoost && "+"}{isPenalty && value > 0 && "-"}{value}
+        </span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+          className={`h-full bg-gradient-to-r ${color} rounded-full`}
+        />
+      </div>
     </div>
   );
 }

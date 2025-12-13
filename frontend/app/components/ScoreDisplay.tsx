@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 interface ScoreDisplayProps {
   score: number;
   riskBand: number;
@@ -17,111 +19,215 @@ export default function ScoreDisplay({
   stakingBoost,
   oraclePenalty
 }: ScoreDisplayProps) {
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(true);
+
+  useEffect(() => {
+    setIsAnimating(true);
+    const duration = 2000;
+    const steps = 60;
+    const increment = score / steps;
+    let current = 0;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      current = Math.min(increment * step, score);
+      setAnimatedScore(Math.floor(current));
+      
+      if (step >= steps) {
+        setAnimatedScore(score);
+        setIsAnimating(false);
+        clearInterval(timer);
+      }
+    }, duration / steps);
+
+    return () => clearInterval(timer);
+  }, [score]);
+
   const getRiskColor = (band: number) => {
     switch (band) {
-      case 1: return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
-      case 2: return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300';
-      case 3: return 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300';
-      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
+      case 1: return { gradient: 'from-green-400 to-emerald-500', glow: 'rgba(16, 185, 129, 0.5)', label: 'Low Risk', bg: 'bg-green-500/10', border: 'border-green-500/30' };
+      case 2: return { gradient: 'from-amber-400 to-yellow-500', glow: 'rgba(245, 158, 11, 0.5)', label: 'Medium Risk', bg: 'bg-amber-500/10', border: 'border-amber-500/30' };
+      case 3: return { gradient: 'from-rose-400 to-red-500', glow: 'rgba(244, 63, 94, 0.5)', label: 'High Risk', bg: 'bg-rose-500/10', border: 'border-rose-500/30' };
+      default: return { gradient: 'from-gray-400 to-gray-500', glow: 'rgba(148, 163, 184, 0.5)', label: 'Unknown', bg: 'bg-gray-500/10', border: 'border-gray-500/30' };
     }
   };
 
-  const getRiskLabel = (band: number) => {
-    switch (band) {
-      case 1: return 'Low Risk';
-      case 2: return 'Medium Risk';
-      case 3: return 'High Risk';
-      default: return 'Unknown';
-    }
-  };
+  const riskInfo = getRiskColor(riskBand);
+  
+  // Calculate angle for gauge (0-180 degrees for semicircle)
+  const percentage = score / 1000;
+  const angle = percentage * 180;
+  const circumference = Math.PI * 100; // radius = 100
+  const strokeDashoffset = circumference - (percentage * circumference);
 
-  // Calculate angle for gauge (0-180 degrees, where 0 = 0 score, 180 = 1000 score)
-  const angle = (score / 1000) * 180;
+  // Get gradient colors based on score
+  const getScoreGradient = () => {
+    if (score >= 750) return 'from-green-400 via-cyan-400 to-green-500';
+    if (score >= 500) return 'from-amber-400 via-yellow-400 to-amber-500';
+    return 'from-rose-400 via-red-400 to-rose-500';
+  };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100">
+    <div className="glass rounded-2xl p-8 animate-fade-in">
+      <h2 className="text-2xl font-bold text-center mb-8 gradient-text">
         Your Credit Score
       </h2>
       
-      {/* Score Gauge */}
-      <div className="relative w-64 h-32 mx-auto mb-8">
-        <svg className="w-full h-full" viewBox="0 0 200 100">
+      {/* Radial Gauge */}
+      <div className="relative w-80 h-40 mx-auto mb-8">
+        <svg className="w-full h-full" viewBox="0 0 200 120" style={{ filter: `drop-shadow(0 0 20px ${riskInfo.glow})` }}>
+          <defs>
+            <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#00d4ff" />
+              <stop offset="50%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#00d4ff" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
           {/* Background arc */}
           <path
-            d="M 20 80 A 80 80 0 0 1 180 80"
+            d="M 20 100 A 80 80 0 0 1 180 100"
             fill="none"
-            stroke="#e5e7eb"
+            stroke="rgba(255, 255, 255, 0.1)"
             strokeWidth="12"
-          />
-          {/* Score arc */}
-          <path
-            d="M 20 80 A 80 80 0 0 1 180 80"
-            fill="none"
-            stroke={score >= 750 ? '#10b981' : score >= 500 ? '#f59e0b' : '#ef4444'}
-            strokeWidth="12"
-            strokeDasharray={`${(angle / 180) * 251.2} 251.2`}
             strokeLinecap="round"
-            transform="rotate(180 100 100)"
           />
-          {/* Score text */}
+          
+          {/* Score arc with animation */}
+          <path
+            d="M 20 100 A 80 80 0 0 1 180 100"
+            fill="none"
+            stroke="url(#scoreGradient)"
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            className="animate-draw-arc"
+            style={{ 
+              filter: `drop-shadow(0 0 10px ${riskInfo.glow})`,
+              transform: 'rotate(180deg)',
+              transformOrigin: '100px 100px'
+            }}
+          />
+          
+          {/* Score text with glow */}
           <text
             x="100"
-            y="70"
+            y="75"
             textAnchor="middle"
-            className="text-4xl font-bold fill-gray-900 dark:fill-gray-100"
+            className="text-5xl font-bold fill-white"
+            style={{ filter: 'url(#glow)' }}
           >
-            {score}
+            {animatedScore}
           </text>
           <text
             x="100"
-            y="90"
+            y="95"
             textAnchor="middle"
-            className="text-sm fill-gray-500 dark:fill-gray-400"
+            className="text-sm fill-text-secondary"
           >
             / 1000
           </text>
         </svg>
+        
+        {/* Pulsing glow effect when animating */}
+        {isAnimating && (
+          <div 
+            className="absolute inset-0 rounded-full animate-pulse-glow"
+            style={{ 
+              background: `radial-gradient(circle, ${riskInfo.glow} 0%, transparent 70%)`,
+              pointerEvents: 'none'
+            }}
+          />
+        )}
       </div>
 
-      {/* Risk Band */}
+      {/* Risk Band Badge */}
       <div className="text-center mb-6">
-        <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getRiskColor(riskBand)}`}>
-          {getRiskLabel(riskBand)}
+        <span className={`inline-flex items-center gap-2 px-6 py-2 rounded-full text-sm font-semibold ${riskInfo.bg} ${riskInfo.border} border`}>
+          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${riskInfo.gradient} animate-pulse`}></div>
+          {riskInfo.label}
         </span>
       </div>
 
       {/* Explanation */}
-      <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-        <p className="text-sm text-gray-700 dark:text-gray-300">{explanation}</p>
+      <div className="glass-hover rounded-lg p-4 mb-6">
+        <p className="text-sm text-text-secondary leading-relaxed">{explanation}</p>
       </div>
 
-      {/* Score Breakdown (if available) */}
+      {/* Score Breakdown */}
       {(stakingBoost !== undefined && stakingBoost > 0) || (oraclePenalty !== undefined && oraclePenalty > 0) ? (
-        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-          <h3 className="font-semibold mb-2 text-sm">Score Breakdown</h3>
-          <div className="space-y-1 text-xs">
-            {baseScore !== undefined && (
-              <div className="flex justify-between">
-                <span>Base Score:</span>
-                <span className="font-semibold">{baseScore}</span>
+        <div className="glass-hover rounded-lg p-6 space-y-4">
+          <h3 className="font-semibold text-lg mb-4 gradient-text">Score Breakdown</h3>
+          
+          {/* Base Score */}
+          {baseScore !== undefined && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-text-secondary">Base Score</span>
+                <span className="font-mono font-semibold text-white">{baseScore}</span>
               </div>
-            )}
-            {oraclePenalty !== undefined && oraclePenalty > 0 && (
-              <div className="flex justify-between text-red-600">
-                <span>Oracle Penalty:</span>
-                <span>-{oraclePenalty}</span>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${(baseScore / 1000) * 100}%` }}
+                />
               </div>
-            )}
-            {stakingBoost !== undefined && stakingBoost > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Staking Boost:</span>
-                <span>+{stakingBoost}</span>
+            </div>
+          )}
+          
+          {/* Oracle Penalty */}
+          {oraclePenalty !== undefined && oraclePenalty > 0 && (
+            <div className="space-y-2 animate-slide-up stagger-1">
+              <div className="flex justify-between items-center">
+                <span className="text-text-secondary">Oracle Penalty</span>
+                <span className="font-mono font-semibold text-red-400">-{oraclePenalty}</span>
               </div>
-            )}
-            <div className="flex justify-between font-bold pt-1 border-t border-blue-200 dark:border-blue-700">
-              <span>Final Score:</span>
-              <span>{score}</span>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-red-500 to-rose-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${(oraclePenalty / 1000) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Staking Boost */}
+          {stakingBoost !== undefined && stakingBoost > 0 && (
+            <div className="space-y-2 animate-slide-up stagger-2">
+              <div className="flex justify-between items-center">
+                <span className="text-text-secondary">Staking Boost</span>
+                <span className="font-mono font-semibold text-green-400">+{stakingBoost}</span>
+              </div>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${(stakingBoost / 1000) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Final Score */}
+          <div className="pt-4 border-t border-white/10 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-white">Final Score</span>
+              <span className="font-mono font-bold text-2xl gradient-text">{score}</span>
+            </div>
+            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+              <div 
+                className={`h-full bg-gradient-to-r ${getScoreGradient()} rounded-full transition-all duration-1000 glow-gradient`}
+                style={{ width: `${(score / 1000) * 100}%` }}
+              />
             </div>
           </div>
         </div>
@@ -129,4 +235,3 @@ export default function ScoreDisplay({
     </div>
   );
 }
-

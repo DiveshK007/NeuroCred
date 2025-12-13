@@ -43,16 +43,13 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
       const ltvValue = Number(ltv);
       setLtvBps(ltvValue);
 
-      // Calculate max borrow
       const collateralWei = ethers.parseEther(collateralValue.toString());
       const maxBorrowWei = await lenderContract.calculateMaxBorrow(address, collateralWei);
       setMaxBorrow(Number(ethers.formatEther(maxBorrowWei)));
 
-      // Calculate interest rate based on LTV
       calculateInterestRate(ltvValue);
     } catch (error) {
       console.error('Error loading LTV:', error);
-      // Fallback to score-based calculation
       if (score !== null && riskBand !== null) {
         calculateFromScore();
       }
@@ -64,11 +61,10 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
   const calculateFromScore = () => {
     if (score === null || riskBand === null) return;
 
-    // Map risk band to LTV
     const ltvMap: { [key: number]: number } = {
-      1: 7000, // 70%
-      2: 5000, // 50%
-      3: 3000, // 30%
+      1: 7000,
+      2: 5000,
+      3: 3000,
       0: 0
     };
 
@@ -79,55 +75,59 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
   };
 
   const calculateInterestRate = (ltv: number) => {
-    // Interest rate inversely correlated with LTV (higher LTV = lower rate for good scores)
-    // Risk band 1: 5-8% APY, Risk band 2: 8-12% APY, Risk band 3: 12-18% APY
     if (riskBand === 1) {
-      setInterestRate(5 + (7000 - ltv) / 1000); // 5-8%
+      setInterestRate(5 + (7000 - ltv) / 1000);
     } else if (riskBand === 2) {
-      setInterestRate(8 + (5000 - ltv) / 1000); // 8-12%
+      setInterestRate(8 + (5000 - ltv) / 1000);
     } else if (riskBand === 3) {
-      setInterestRate(12 + (3000 - ltv) / 1000); // 12-18%
+      setInterestRate(12 + (3000 - ltv) / 1000);
     } else {
-      setInterestRate(20); // Default high rate
+      setInterestRate(20);
     }
   };
 
-  const riskBandNames: { [key: number]: string } = {
-    1: 'Low Risk',
-    2: 'Medium Risk',
-    3: 'High Risk',
-    0: 'Unknown'
+  const riskBandInfo = {
+    1: { name: 'Low Risk', color: 'from-green-400 to-emerald-500', bg: 'bg-green-500/10', border: 'border-green-500/30' },
+    2: { name: 'Medium Risk', color: 'from-amber-400 to-yellow-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+    3: { name: 'High Risk', color: 'from-rose-400 to-red-500', bg: 'bg-rose-500/10', border: 'border-rose-500/30' },
+    0: { name: 'Unknown', color: 'from-gray-400 to-gray-500', bg: 'bg-gray-500/10', border: 'border-gray-500/30' }
   };
 
-  return (
-    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-4">DeFi Lending Demo</h2>
+  const currentRisk = riskBand !== null ? riskBandInfo[riskBand as keyof typeof riskBandInfo] : riskBandInfo[0];
+  const ltvPercent = ltvBps / 100;
+  const ltvAngle = (ltvPercent / 100) * 180;
+  const circumference = Math.PI * 100;
+  const strokeDashoffset = circumference - (ltvPercent / 100) * circumference;
 
-      {/* Score Display */}
-      {score !== null && (
-        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600 dark:text-gray-400">Credit Score:</span>
-            <span className="font-bold text-lg">{score}/1000</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">Risk Band:</span>
-            <span className={`font-semibold ${
-              riskBand === 1 ? 'text-green-600' : 
-              riskBand === 2 ? 'text-yellow-600' : 
-              'text-red-600'
-            }`}>
-              {riskBand !== null ? riskBandNames[riskBand] : 'Unknown'}
-            </span>
+  return (
+    <div className="space-y-6">
+      {/* Score & Risk Display */}
+      {score !== null && riskBand !== null && (
+        <div className="glass rounded-xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-text-secondary text-sm mb-1">Credit Score</p>
+              <p className="text-3xl font-bold text-white font-mono">{score}</p>
+              <p className="text-text-muted text-xs mt-1">/ 1000</p>
+            </div>
+            <div className={`px-4 py-2 rounded-lg border ${currentRisk.bg} ${currentRisk.border}`}>
+              <p className="text-text-secondary text-xs mb-1">Risk Band</p>
+              <p className={`font-semibold bg-gradient-to-r ${currentRisk.color} bg-clip-text text-transparent`}>
+                {currentRisk.name}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* Collateral Slider */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">
-          Collateral Value: ${collateralValue.toLocaleString()}
-        </label>
+      <div className="glass rounded-xl p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-white">Collateral Value</h3>
+          <p className="text-2xl font-bold font-mono gradient-text">
+            ${collateralValue.toLocaleString()}
+          </p>
+        </div>
         <input
           type="range"
           min="100"
@@ -135,66 +135,136 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
           step="100"
           value={collateralValue}
           onChange={(e) => setCollateralValue(Number(e.target.value))}
-          className="w-full"
+          className="w-full h-3 bg-white/5 rounded-lg appearance-none cursor-pointer slider-gradient"
+          style={{
+            background: `linear-gradient(to right, 
+              rgb(0, 212, 255) 0%, 
+              rgb(124, 58, 237) ${(collateralValue / 100000) * 100}%, 
+              rgba(255, 255, 255, 0.1) ${(collateralValue / 100000) * 100}%
+            )`
+          }}
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="flex justify-between text-xs text-text-muted mt-2">
           <span>$100</span>
           <span>$100,000</span>
         </div>
       </div>
 
-      {/* Results */}
-      {isLoading ? (
-        <div className="text-center py-4">Loading...</div>
-      ) : (
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-700 dark:text-gray-300">Loan-to-Value (LTV):</span>
-              <span className="font-bold text-lg">{ltvBps / 100}%</span>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Based on your credit score and risk band
-            </div>
-          </div>
-
-          <div className="p-4 bg-green-50 dark:bg-green-900 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-700 dark:text-gray-300">Max Borrowable:</span>
-              <span className="font-bold text-lg text-green-700 dark:text-green-300">
-                ${maxBorrow.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Maximum amount you can borrow against ${collateralValue.toLocaleString()} collateral
-            </div>
-          </div>
-
-          <div className="p-4 bg-purple-50 dark:bg-purple-900 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-700 dark:text-gray-300">Interest Rate (APY):</span>
-              <span className="font-bold text-lg text-purple-700 dark:text-purple-300">
-                {interestRate.toFixed(2)}%
-              </span>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Annual percentage yield based on your risk profile
-            </div>
+      {/* LTV Visualization */}
+      {!isLoading && ltvBps > 0 && (
+        <div className="glass rounded-xl p-8">
+          <h3 className="font-semibold text-center mb-6 text-white">Loan-to-Value Ratio</h3>
+          <div className="relative w-64 h-32 mx-auto mb-6">
+            <svg className="w-full h-full" viewBox="0 0 200 120">
+              <defs>
+                <linearGradient id="ltvGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#00d4ff" />
+                  <stop offset="100%" stopColor="#7c3aed" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M 20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.1)"
+                strokeWidth="12"
+                strokeLinecap="round"
+              />
+              <path
+                d="M 20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="url(#ltvGradient)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                className="transition-all duration-1000"
+                style={{
+                  transform: 'rotate(180deg)',
+                  transformOrigin: '100px 100px',
+                  filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.5))'
+                }}
+              />
+              <text
+                x="100"
+                y="75"
+                textAnchor="middle"
+                className="text-4xl font-bold fill-white font-mono"
+              >
+                {ltvPercent.toFixed(0)}%
+              </text>
+              <text
+                x="100"
+                y="95"
+                textAnchor="middle"
+                className="text-sm fill-text-secondary"
+              >
+                LTV
+              </text>
+            </svg>
           </div>
         </div>
       )}
 
-      {/* Info */}
-      <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg">
-        <h3 className="font-semibold mb-2">How it works:</h3>
-        <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
-          <li>• Higher credit scores = Higher LTV (up to 70%)</li>
-          <li>• Lower risk bands = Lower interest rates</li>
-          <li>• Staking NCRD can boost your score and improve terms</li>
-          <li>• This is a demo - actual lending would require collateral deposit</li>
-        </ul>
+      {/* Results Grid */}
+      {isLoading ? (
+        <div className="glass rounded-xl p-12 text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+          <p className="mt-4 text-text-secondary">Loading...</p>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Max Borrowable */}
+          <div className="glass-hover rounded-xl p-6 border border-green-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="text-3xl">💰</div>
+              <h3 className="font-semibold text-white">Max Borrowable</h3>
+            </div>
+            <p className="text-4xl font-bold font-mono text-green-400 mb-2">
+              ${maxBorrow.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-xs text-text-secondary">
+              Based on ${collateralValue.toLocaleString()} collateral
+            </p>
+          </div>
+
+          {/* Interest Rate */}
+          <div className="glass-hover rounded-xl p-6 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="text-3xl">📈</div>
+              <h3 className="font-semibold text-white">Interest Rate</h3>
+            </div>
+            <p className="text-4xl font-bold font-mono text-purple-400 mb-2">
+              {interestRate.toFixed(2)}%
+            </p>
+            <p className="text-xs text-text-secondary">
+              Annual percentage yield (APY)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Info Card */}
+      <div className="glass rounded-xl p-6">
+        <h3 className="font-semibold mb-4 text-white">How It Works</h3>
+        <div className="space-y-3 text-sm text-text-secondary">
+          <div className="flex items-start gap-3">
+            <span className="text-cyan-400 mt-0.5">→</span>
+            <span>Higher credit scores unlock higher LTV ratios (up to 70%)</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-cyan-400 mt-0.5">→</span>
+            <span>Lower risk bands receive better interest rates</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-cyan-400 mt-0.5">→</span>
+            <span>Staking NCRD tokens can boost your score and improve terms</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-cyan-400 mt-0.5">→</span>
+            <span>This is a demo - actual lending requires collateral deposit</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-

@@ -102,63 +102,74 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+    <div className="flex flex-col h-full glass rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-white/10 bg-glass-hover">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          <h3 className="font-semibold text-white">Q-Loan AI Assistant</h3>
+        </div>
+      </div>
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}
+            style={{ animationDelay: `${idx * 0.1}s` }}
           >
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${
+              className={`max-w-[80%] rounded-2xl p-4 ${
                 msg.role === 'user'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg'
+                  : 'glass text-white'
               }`}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
               
               {/* Loan Offer Card */}
               {msg.offer && msg.signature && (
-                <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600">
-                  <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Loan Offer</h4>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Amount:</span>
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                <div className="mt-4 glass rounded-xl p-4 border border-cyan-500/30 neon-border animate-fade-in">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
+                    <h4 className="font-semibold text-white">Loan Offer</h4>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-text-secondary text-sm">Loan Amount</span>
+                      <span className="font-mono font-bold text-white text-lg">
                         {formatOffer(msg.offer)?.amount} QIE
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Collateral:</span>
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-text-secondary text-sm">Collateral Required</span>
+                      <span className="font-mono font-semibold text-white">
                         {formatOffer(msg.offer)?.collateral} QIE
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Interest Rate:</span>
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-text-secondary text-sm">Interest Rate</span>
+                      <span className="font-mono font-semibold text-green-400">
                         {formatOffer(msg.offer)?.rate}% APR
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Duration:</span>
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                      <span className="text-text-secondary text-sm">Duration</span>
+                      <span className="font-semibold text-white">
                         {formatOffer(msg.offer)?.duration} days
                       </span>
                     </div>
                   </div>
                   <button
                     onClick={() => {
-                      // This will trigger loan execution in parent component
                       if (window.dispatchEvent) {
                         window.dispatchEvent(new CustomEvent('acceptOffer', {
                           detail: { offer: msg.offer, signature: msg.signature }
                         }));
                       }
                     }}
-                    className="mt-3 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="mt-4 w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]"
                   >
                     Accept Offer
                   </button>
@@ -167,42 +178,46 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
             </div>
           </div>
         ))}
+        
+        {/* Typing Indicator */}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
+          <div className="flex justify-start animate-fade-in">
+            <div className="glass rounded-2xl p-4">
               <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
               </div>
             </div>
           </div>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex gap-2">
+      <div className="border-t border-white/10 p-4 bg-glass-hover">
+        <div className="flex gap-3">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Type your message..."
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 px-4 py-3 glass rounded-lg text-white placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
             disabled={isLoading || !address}
           />
           <button
             onClick={sendMessage}
             disabled={isLoading || !input.trim() || !address}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn-gradient px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            Send
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
           </button>
         </div>
       </div>
     </div>
   );
 }
-

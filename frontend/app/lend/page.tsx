@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import WalletConnect from '../components/WalletConnect';
 import ChatConsole from '../components/ChatConsole';
 import ScoreDisplay from '../components/ScoreDisplay';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const LENDING_VAULT_ADDRESS = process.env.NEXT_PUBLIC_LENDING_VAULT_ADDRESS;
@@ -25,12 +26,19 @@ export default function LendPage() {
   const [explanation, setExplanation] = useState<string>('');
   const [activeLoans, setActiveLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [balance, setBalance] = useState<string>('0');
 
-  const handleConnect = (addr: string, prov: ethers.BrowserProvider) => {
+  const handleConnect = async (addr: string, prov: ethers.BrowserProvider) => {
     setAddress(addr);
     setProvider(prov);
     loadScore(addr);
     loadActiveLoans(addr, prov);
+    try {
+      const bal = await prov.getBalance(addr);
+      setBalance(ethers.formatEther(bal));
+    } catch (e) {
+      console.error('Error fetching balance:', e);
+    }
   };
 
   const handleDisconnect = () => {
@@ -40,6 +48,7 @@ export default function LendPage() {
     setRiskBand(null);
     setExplanation('');
     setActiveLoans([]);
+    setBalance('0');
   };
 
   const loadScore = async (addr: string) => {
@@ -91,10 +100,8 @@ export default function LendPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(LENDING_VAULT_ADDRESS, LENDING_VAULT_ABI, signer);
       
-      // Convert signature to bytes
       const signatureBytes = ethers.getBytes(signature);
       
-      // Execute loan
       const tx = await contract.createLoan(offer, signatureBytes, {
         value: offer.collateralAmount,
       });
@@ -118,71 +125,92 @@ export default function LendPage() {
   }, [address, provider]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Q-Loan: AI-Negotiated Lending
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
-            Chat with AI to get personalized loan terms based on your NeuroCred score
-          </p>
-          <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
-        </div>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="gradient-mesh"></div>
+      <div className="grid-pattern absolute inset-0 opacity-30"></div>
 
-        {address ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-            {/* Left Column: Score & Active Loans */}
-            <div className="space-y-6">
-              {/* Score Display */}
-              {score !== null && (
-                <div>
-                  <ScoreDisplay
-                    score={score}
-                    riskBand={riskBand || 0}
-                    explanation={explanation}
-                  />
-                </div>
-              )}
+      {/* Sidebar */}
+      <Sidebar 
+        address={address} 
+        balance={balance}
+        onConnect={() => address && provider ? null : null}
+        onDisconnect={handleDisconnect}
+      />
 
-              {/* Active Loans */}
-              {activeLoans.length > 0 && (
-                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <h2 className="text-xl font-bold mb-4">Active Loans</h2>
-                  <div className="space-y-3">
-                    {activeLoans.map((loan) => (
-                      <div key={loan.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            Loan #{loan.id}
-                          </span>
-                          <span className="font-semibold">
-                            {loan.totalOwed} QIE owed
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+      {/* Main Content */}
+      <main className="lg:ml-64 min-h-screen">
+        <div className="container mx-auto px-4 py-16">
+          <div className="text-center mb-12 animate-fade-in">
+            <h1 className="text-5xl font-bold gradient-text mb-4">
+              Q-Loan: AI-Negotiated Lending
+            </h1>
+            <p className="text-xl text-text-secondary mb-8">
+              Chat with AI to get personalized loan terms based on your NeuroCred score
+            </p>
+            {!address && (
+              <div className="flex justify-center">
+                <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
+              </div>
+            )}
+          </div>
+
+          {address ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+              {/* Left Column: Score & Active Loans */}
+              <div className="space-y-6">
+                {/* Score Display */}
+                {score !== null && (
+                  <div className="animate-fade-in">
+                    <ScoreDisplay
+                      score={score}
+                      riskBand={riskBand || 0}
+                      explanation={explanation}
+                    />
                   </div>
-                </div>
-              )}
-            </div>
+                )}
 
-            {/* Right Column: Chat Console */}
-            <div className="lg:col-span-2">
-              <div className="h-[600px]">
-                <ChatConsole address={address} />
+                {/* Active Loans */}
+                {activeLoans.length > 0 && (
+                  <div className="glass rounded-xl p-6 animate-fade-in">
+                    <h2 className="text-xl font-bold mb-4 text-white">Active Loans</h2>
+                    <div className="space-y-3">
+                      {activeLoans.map((loan) => (
+                        <div key={loan.id} className="glass-hover rounded-lg p-4 border border-white/10">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">
+                              Loan #{loan.id}
+                            </span>
+                            <span className="font-mono font-semibold text-white">
+                              {loan.totalOwed} QIE
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Chat Console */}
+              <div className="lg:col-span-2">
+                <div className="h-[600px]">
+                  <ChatConsole address={address} />
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Connect your wallet to start chatting with Q-Loan AI
-            </p>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="glass rounded-2xl p-12 text-center max-w-md mx-auto animate-fade-in">
+              <div className="text-6xl mb-6">💬</div>
+              <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
+              <p className="text-text-secondary mb-8">
+                Connect your wallet to start chatting with Q-Loan AI
+              </p>
+              <WalletConnect onConnect={handleConnect} onDisconnect={handleDisconnect} />
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
-

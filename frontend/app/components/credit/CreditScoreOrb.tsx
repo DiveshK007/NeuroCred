@@ -143,8 +143,8 @@ export function CreditScoreOrb({
           {/* Gradient definition */}
           <defs>
             <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="hsl(190, 70%, 35%)" />
-              <stop offset="100%" stopColor="hsl(262, 60%, 45%)" />
+              <stop offset="0%" stopColor="hsl(190, 100%, 50%)" />
+              <stop offset="100%" stopColor="hsl(262, 83%, 58%)" />
             </linearGradient>
           </defs>
           

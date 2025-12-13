@@ -39,12 +39,11 @@ class QIEOracleService:
             oracle_address = self.oracle_addresses.get(oracle_type)
             if oracle_address and oracle_address != "0x0000000000000000000000000000000000000000":
                 try:
-                    # Example oracle contract call (adjust ABI based on actual QIE oracle)
-                    # price = await self._call_oracle_contract(oracle_address, asset)
-                    # return price
-                    pass
-                except:
-                    pass
+                    price = await self._call_oracle_contract(oracle_address)
+                    if price:
+                        return price
+                except Exception as e:
+                    print(f"Oracle contract call failed: {e}, using fallback")
             
             # Fallback to public API (for demo purposes)
             return await self._fetch_price_fallback(asset)

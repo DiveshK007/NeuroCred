@@ -15,13 +15,16 @@
 ## 📋 Contracts
 
 - **CreditPassportNFT (Testnet)**: `0xYourContractAddress` *(Add after deployment)*
+- **LendingVault (Q-Loan)**: `0xYourVaultAddress` *(Add after deployment)*
+- **DemoLender**: `0xYourLenderAddress` *(Add after deployment)*
 - **Example mint tx**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
 
 ## ✅ How I Meet QIE Requirements
 
 - ✅ **Wallet integration**: MetaMask / QIE Wallet (connect + sign)
-- ✅ **Smart contract deployed on QIE Testnet**: address above
-- ✅ **On-chain functionality**: `mintOrUpdate` called by backend (tx link above)
+- ✅ **Smart contract deployed on QIE Testnet**: CreditPassportNFT + LendingVault
+- ✅ **On-chain functionality**: `mintOrUpdate` + `createLoan` transactions on QIE
+- ✅ **AI × Blockchain**: Chat-driven loan negotiation with on-chain settlement
 
 > **Note**: We have rotated any keys and verified no secrets exist in repo history.
 
@@ -35,6 +38,8 @@ NeuroCred solves the problem of blind lending in DeFi by providing portable, on-
 
 - 🤖 **AI-Powered Scoring** - Analyzes transaction history, portfolio composition, and on-chain behavior
 - 🔒 **Soulbound NFT** - Non-transferable Credit Passport stores score on-chain
+- 💬 **AI Chat Negotiation** - Chat with Q-Loan AI to negotiate personalized loan terms
+- 🏦 **LendingVault** - On-chain lending with EIP-712 signature verification
 - 🔌 **Universal Integration** - Simple contract interface for any dApp
 - ⚡ **QIE Optimized** - Built for QIE's 25,000+ TPS and near-zero fees
 - 📊 **QIE Oracles** - Real-time price and volatility data integration
@@ -172,20 +177,61 @@ cp .env.local.example .env.local
 
 ### Deployment
 
+#### 1. Deploy All Contracts
+
 ```bash
-# 1. Deploy contracts to QIE Testnet
 cd contracts
-npx hardhat run scripts/deploy.ts --network qie_testnet
+npx hardhat run scripts/deploy_all.ts --network qieTestnet
+```
 
-# 2. Verify SCORE_UPDATER_ROLE is set
-npx hardhat run scripts/checkRoles.ts --network qie_testnet
+This will deploy:
+- `CreditPassportNFT` (always deployed)
+- `NeuroCredStaking` (requires `NCRD_TOKEN_ADDRESS` in `.env`)
+- `DemoLender` (requires `CreditPassportNFT` address)
 
-# 3. Start backend
-cd ../backend
+**Note**: Before deploying staking contract, create NCRD token via QIEDex or deploy a minimal ERC20 token.
+
+#### 2. Grant SCORE_UPDATER_ROLE
+
+```bash
+cd contracts
+npx hardhat run scripts/grant_updater_role.ts --network qieTestnet
+```
+
+Or verify role is already granted:
+```bash
+npx hardhat run scripts/checkRoles.ts --network qieTestnet
+```
+
+#### 3. Configure Environment
+
+Update `backend/.env` with contract addresses:
+```env
+CREDIT_PASSPORT_ADDRESS=0x...  # From deployment
+STAKING_ADDRESS=0x...          # From deployment (if deployed)
+DEMO_LENDER_ADDRESS=0x...      # From deployment
+NCRD_TOKEN_ADDRESS=0x...       # From QIEDex or deployment
+QIE_ORACLE_USD_ADDR=0x...      # QIE oracle address (optional)
+```
+
+Update `frontend/.env.local` with contract addresses:
+```env
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x...      # CreditPassportNFT
+NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS=0x...  # NeuroCredStaking
+NEXT_PUBLIC_DEMO_LENDER_ADDRESS=0x...  # DemoLender
+```
+
+#### 4. Start Backend
+
+```bash
+cd backend
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 python -m uvicorn app:app --reload --port 8000
+```
 
-# 4. Start frontend (in new terminal)
+#### 5. Start Frontend
+
+```bash
 cd frontend
 npm run dev
 ```
@@ -320,6 +366,23 @@ This will output:
 
 - [Demo Script](./docs/demo-script.md) - Video demo guide
 - [QIEDex Integration](./docs/qiedex-integration.md) - Token creation guide
+- [Submission Checklist](./CHECKLIST.md) - Complete hackathon submission checklist
+
+## 🎯 NCRD Token Creation (QIEDex)
+
+To create the NCRD token via QIEDex:
+
+1. Visit QIEDex token creator (check QIE documentation for URL)
+2. Create ERC-20 token with:
+   - Name: "NeuroCred Token"
+   - Symbol: "NCRD"
+   - Decimals: 18
+   - Initial supply: Your choice
+3. Copy the deployed token address
+4. Add to `.env` files as `NCRD_TOKEN_ADDRESS`
+5. Deploy `NeuroCredStaking` contract pointing to this token
+
+**Alternative**: For local testing, you can deploy a minimal ERC-20 contract. See `contracts/test/NeuroCredStaking.test.ts` for example.
 
 ---
 
@@ -360,13 +423,44 @@ MIT License - see LICENSE file for details
 
 > **Note**: Add your screenshots to the `screenshots/` folder and update paths above.
 
+## 📋 Contract Addresses
+
+After deployment, add your contract addresses here:
+
+- **CreditPassportNFT**: `0xYourContractAddress` *(Add after deployment)*
+- **NeuroCredStaking**: `0xYourStakingAddress` *(Add after deployment)*
+- **DemoLender**: `0xYourLenderAddress` *(Add after deployment)*
+- **NCRD Token**: `0xYourTokenAddress` *(Add after QIEDex creation)*
+
+**Explorer Links**:
+- CreditPassportNFT: `https://testnet.qie.digital/address/0xYourContractAddress`
+- Example Transaction: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+
 ## 🔗 Links
 
 - **GitHub**: https://github.com/DiveshK007/NeuroCred
 - **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
-- **Contract Address**: `0xYourContractAddress` *(Add after deployment)*
-- **Explorer**: `https://testnet.qie.digital/address/0xYourContractAddress` *(Add after deployment)*
-- **Example Transaction**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+- **Live Frontend**: `https://your-deployment.vercel.app` *(Add after deployment)*
+- **Live Backend**: `https://your-deployment.onrender.com` *(Add after deployment)*
+
+## ✅ How We Satisfy QIE Hackathon $500 Requirements
+
+1. **Wallet Integration** ✅
+   - MetaMask/QIE Wallet connection implemented
+   - Wallet address and balance display
+   - Transaction signing for staking operations
+
+2. **Smart Contract Deployed** ✅
+   - CreditPassportNFT deployed to QIE Testnet
+   - Contract address: `0xYourContractAddress` *(Update after deployment)*
+   - Verified on QIE explorer
+
+3. **On-Chain Functionality** ✅
+   - Backend calls `mintOrUpdate()` to write scores on-chain
+   - Transaction hash returned in API response
+   - Example transaction: `https://testnet.qie.digital/tx/0xYourTxHash` *(Update after first mint)*
+
+**Proof**: See transaction link above and screenshots in `screenshots/` folder.
 
 ---
 

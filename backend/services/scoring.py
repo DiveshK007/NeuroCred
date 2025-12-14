@@ -54,11 +54,34 @@ class ScoringService:
             explanation = ". ".join(explanation_parts)
             
             # Log for debugging
-            print(f"Score calculation for {address}:")
-            print(f"  Base score: {base_score}, Oracle penalty: {oracle_penalty}, Staking boost: {staking_boost}")
-            print(f"  Final score: {final_score}, Risk band: {base_risk_band} -> {final_risk_band}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.debug(
+                "Score calculation completed",
+                extra={
+                    "address": address,
+                    "base_score": base_score,
+                    "oracle_penalty": oracle_penalty,
+                    "staking_boost": staking_boost,
+                    "final_score": final_score,
+                    "risk_band": f"{base_risk_band} -> {final_risk_band}",
+                    "extra_data": {
+                        "base_risk_band": base_risk_band,
+                        "final_risk_band": final_risk_band,
+                    }
+                }
+            )
             
-            return {
+            duration = time.time() - start_time
+            
+            # Record metrics
+            record_score_computation(
+                status="success",
+                duration=duration,
+                score=final_score
+            )
+            
+            result = {
                 "score": final_score,
                 "baseScore": base_score,
                 "riskBand": final_risk_band,
@@ -69,9 +92,32 @@ class ScoringService:
                 "stakingTier": staking_tier,
                 "features": features.__dict__ if features else None
             }
+            
+            # Cache result
+            from utils.cache import cache_score
+            cache_score(address, result)
+            
+            return result
         except Exception as e:
+            duration = time.time() - start_time
+            
+            # Record error metrics
+            record_score_computation(
+                status="error",
+                duration=duration
+            )
             # Return default score on error
-            print(f"Error computing score: {e}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(
+                "Error computing score",
+                exc_info=True,
+                extra={
+                    "address": address,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                }
+            )
             return {
                 "score": 500,
                 "baseScore": 500,

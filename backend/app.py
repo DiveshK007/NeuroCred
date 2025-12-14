@@ -1,12 +1,13 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, status
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import os
 from dotenv import load_dotenv
 
 from services.scoring import ScoringService
 from services.blockchain import BlockchainService
+from services.gdpr import GDPRService
 from middleware.security_headers import SecurityHeadersMiddleware
 from middleware.auth import get_current_user
 from middleware.rate_limit import limiter
@@ -16,10 +17,95 @@ from utils.wallet_verification import verify_timestamped_message, create_verific
 from utils.audit_logger import log_score_generation, log_on_chain_update, log_loan_creation
 from utils.jwt_handler import create_access_token
 from models.auth import Token, AuthRequest
+from utils.monitoring import init_sentry, capture_exception, set_user_context
+from utils.logger import setup_logging, get_logger
+from middleware.logging import LoggingMiddleware
+from middleware.metrics import MetricsMiddleware
+from middleware.performance import PerformanceMiddleware
+from middleware.cache import CacheMiddleware
+from utils.metrics import get_metrics, get_metrics_content_type, set_app_info
 
 load_dotenv()
 
-app = FastAPI(title="NeuroCred API", version="1.0.0")
+# Setup structured logging
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    log_file=os.getenv("LOG_FILE", os.path.join("logs", "app.log"))
+)
+
+logger = get_logger(__name__)
+
+# Initialize Sentry before creating the app
+init_sentry(
+    traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+    enable_tracing=os.getenv("SENTRY_ENABLE_TRACING", "true").lower() == "true"
+)
+
+app = FastAPI(
+    title="NeuroCred API",
+    version="1.0.0",
+    description="""
+    NeuroCred API - AI-powered credit scoring on QIE blockchain.
+    
+    ## Features
+    
+    * **Credit Scoring**: Generate AI-powered credit scores based on on-chain activity
+    * **Staking**: Stake NCRD tokens to boost your credit tier
+    * **Lending**: Create and manage loans with AI negotiation
+    * **Oracle Integration**: Real-time price and volatility data from QIE oracles
+    * **Fraud Detection**: Advanced fraud detection and Sybil attack prevention
+    
+    ## Authentication
+    
+    Most endpoints require authentication via:
+    * API Key in header: `X-API-Key: your-api-key`
+    * JWT Token in header: `Authorization: Bearer your-jwt-token`
+    * Wallet signature verification for blockchain operations
+    """,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+# Set application info for metrics
+app_version = os.getenv("APP_VERSION", "1.0.0")
+app_environment = os.getenv("ENVIRONMENT", "development")
+set_app_info(app_version, app_environment)
+
+# Add logging middleware (after CORS, before other middleware)
+app.add_middleware(LoggingMiddleware)
+
+# Add metrics middleware
+if os.getenv("METRICS_ENABLED", "true").lower() == "true":
+    app.add_middleware(MetricsMiddleware)
+
+# Add performance monitoring middleware
+if os.getenv("PERFORMANCE_MONITORING_ENABLED", "true").lower() == "true":
+    app.add_middleware(PerformanceMiddleware)
+
+# Add cache middleware (after logging, before other middleware)
+if os.getenv("CACHE_ENABLED", "true").lower() == "true":
+    app.add_middleware(CacheMiddleware)
+
+# Add exception handler for unhandled exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler that sends errors to Sentry"""
+    from utils.monitoring import capture_exception
+    
+    # Capture exception in Sentry
+    capture_exception(
+        exc,
+        endpoint=request.url.path,
+        method=request.method,
+        query_params=str(request.query_params),
+    )
+    
+    # Return error response
+    return HTTPException(
+        status_code=500,
+        detail="Internal server error"
+    )
 
 # Security headers middleware (must be first)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -34,9 +120,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize database (if configured)
+if os.getenv("DATABASE_URL"):
+    from database.connection import init_db
+    import asyncio
+    # Initialize database on startup
+    asyncio.create_task(init_db())
+
 # Initialize services
 scoring_service = ScoringService()
 blockchain_service = BlockchainService()
+gdpr_service = GDPRService()
 
 # Request/Response models
 class ScoreRequest(BaseModel):
@@ -175,8 +269,37 @@ async def generate_score(
                 detail="Authentication required (API key, JWT, or wallet signature)"
             )
         
-        # Compute score
-        result = await scoring_service.compute_score(score_request.address)
+        # Compute score (use async task if enabled, otherwise sync)
+        use_async = os.getenv("USE_ASYNC_SCORE_COMPUTATION", "false").lower() == "true"
+        
+        if use_async:
+            # Enqueue for background processing
+            from rq import Queue
+            from redis import Redis
+            from tasks.score_tasks import compute_score_task
+            
+            redis_url = os.getenv("RQ_REDIS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/2")
+            redis_conn = Redis.from_url(redis_url)
+            queue = Queue("score_computation", connection=redis_conn)
+            
+            job = queue.enqueue(compute_score_task, score_request.address)
+            
+            # Return job ID, client can poll for result
+            return ScoreResponse(
+                address=score_request.address,
+                score=0,  # Placeholder
+                baseScore=0,
+                riskBand=0,
+                explanation="Score computation queued. Use job_id to check status.",
+                transactionHash=None,
+                stakingBoost=0,
+                oraclePenalty=0,
+                stakedAmount=0,
+                stakingTier=0
+            )
+        else:
+            # Compute synchronously
+            result = await scoring_service.compute_score(score_request.address)
         
         # Automatically update on-chain
         tx_hash = None

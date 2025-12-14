@@ -1,0 +1,58 @@
+name: Verify Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network to verify on'
+        required: true
+        type: choice
+        options:
+          - qieTestnet
+          - qieMainnet
+      contract_address:
+        description: 'Contract proxy address to verify'
+        required: true
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: contracts/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./contracts
+        run: npm ci
+      
+      - name: Compile contracts
+        working-directory: ./contracts
+        run: npm run compile
+      
+      - name: Verify contract
+        working-directory: ./contracts
+        env:
+          QIE_TESTNET_RPC_URL: ${{ secrets.QIE_TESTNET_RPC_URL }}
+          QIE_TESTNET_CHAIN_ID: ${{ secrets.QIE_TESTNET_CHAIN_ID }}
+          QIE_EXPLORER_API_KEY: ${{ secrets.QIE_EXPLORER_API_KEY }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: |
+          npx hardhat verify --network ${{ github.event.inputs.network }} ${{ github.event.inputs.contract_address }}
+      
+      - name: Verify implementation (if proxy)
+        working-directory: ./contracts
+        if: ${{ github.event.inputs.implementation_address != '' }}
+        env:
+          QIE_TESTNET_RPC_URL: ${{ secrets.QIE_TESTNET_RPC_URL }}
+          QIE_TESTNET_CHAIN_ID: ${{ secrets.QIE_TESTNET_CHAIN_ID }}
+          QIE_EXPLORER_API_KEY: ${{ secrets.QIE_EXPLORER_API_KEY }}
+        run: |
+          npx hardhat verify --network ${{ github.event.inputs.network }} ${{ github.event.inputs.implementation_address }}
+

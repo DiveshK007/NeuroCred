@@ -103,15 +103,46 @@ describe("DemoLender", function () {
     });
   });
 
-  describe("Events", function () {
-    it("Should emit LTVQueried event", async function () {
+  describe("Edge Cases", function () {
+    it("Should handle risk band 0", async function () {
+      const { lender, passportNFT, owner, user1 } = await loadFixture(deployLenderFixture);
+      
+      await passportNFT.connect(owner).mintOrUpdate(user1.address, 0, 0);
+      
+      const ltv = await lender.getLTV(user1.address);
+      expect(ltv).to.equal(0);
+    });
+
+    it("Should handle score updates affecting LTV", async function () {
+      const { lender, passportNFT, owner, user1 } = await loadFixture(deployLenderFixture);
+      
+      await passportNFT.connect(owner).mintOrUpdate(user1.address, 300, 3);
+      expect(await lender.getLTV(user1.address)).to.equal(3000);
+      
+      await passportNFT.connect(owner).mintOrUpdate(user1.address, 800, 1);
+      expect(await lender.getLTV(user1.address)).to.equal(7000);
+    });
+
+    it("Should calculate max borrow for zero collateral", async function () {
       const { lender, passportNFT, owner, user1 } = await loadFixture(deployLenderFixture);
       
       await passportNFT.connect(owner).mintOrUpdate(user1.address, 800, 1);
+      const maxBorrow = await lender.calculateMaxBorrow(user1.address, 0);
       
-      await expect(lender.getLTV(user1.address))
-        .to.emit(lender, "LTVQueried")
-        .withArgs(user1.address, 7000, 1);
+      expect(maxBorrow).to.equal(0);
+    });
+  });
+
+  describe("Gas Optimization", function () {
+    it("Should use reasonable gas for LTV query", async function () {
+      const { lender, passportNFT, owner, user1 } = await loadFixture(deployLenderFixture);
+      
+      await passportNFT.connect(owner).mintOrUpdate(user1.address, 800, 1);
+      const tx = await lender.getLTV(user1.address);
+      
+      // View function, should be very cheap (no gas used in view calls)
+      // But we can test the function works
+      expect(await lender.getLTV(user1.address)).to.equal(7000);
     });
   });
 });

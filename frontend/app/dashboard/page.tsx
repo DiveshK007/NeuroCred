@@ -18,6 +18,8 @@ import { Layout } from "@/components/layout/Layout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/button";
 import { CreditScoreOrb } from "@/components/credit/CreditScoreOrb";
+import { handleApiError, formatError } from "@/lib/errors";
+import { showErrorToast } from "@/components/ui/ErrorToast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -77,17 +79,21 @@ export default function Dashboard() {
 
   const loadDashboardData = async (addr: string) => {
     setIsLoading(true);
+    setIsInitialLoad(true);
     try {
       // Fetch score
       const scoreRes = await fetch(`${API_URL}/api/score/${addr}`);
-      if (scoreRes.ok) {
-        const scoreData = await scoreRes.json();
-        setScore(scoreData.score);
-        setBaseScore(scoreData.baseScore || scoreData.score);
-        setStakingBoost(scoreData.stakingBoost || 0);
-        setOraclePenalty(scoreData.oraclePenalty || 0);
-        setRiskBand(scoreData.riskBand || 0);
+      if (!scoreRes.ok) {
+        await handleApiError(scoreRes);
+        return;
       }
+      
+      const scoreData = await scoreRes.json();
+      setScore(scoreData.score);
+      setBaseScore(scoreData.baseScore || scoreData.score);
+      setStakingBoost(scoreData.stakingBoost || 0);
+      setOraclePenalty(scoreData.oraclePenalty || 0);
+      setRiskBand(scoreData.riskBand || 0);
 
       // Fetch oracle price
       try {
@@ -115,9 +121,14 @@ export default function Dashboard() {
         console.error('Error fetching staking info:', e);
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      const formattedError = formatError(error);
+      showErrorToast({
+        error,
+        onRetry: () => loadDashboardData(addr),
+      });
     } finally {
       setIsLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -159,6 +170,16 @@ export default function Dashboard() {
       subtext: "QIE",
     },
   ];
+
+  if (isInitialLoad && isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <LoadingSpinner size="lg" text="Loading dashboard..." />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

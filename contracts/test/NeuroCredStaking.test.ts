@@ -130,6 +130,111 @@ describe("NeuroCredStaking", function () {
 
       expect(await staking.integrationTier(user1.address)).to.equal(3);
     });
+
+    it("Should handle tier boundary at 500 NCRD", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const amount = ethers.parseEther("499");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("10000"));
+      await staking.connect(user1).stake(amount);
+      expect(await staking.integrationTier(user1.address)).to.equal(0);
+
+      await staking.connect(user1).stake(ethers.parseEther("1"));
+      expect(await staking.integrationTier(user1.address)).to.equal(1);
+    });
+
+    it("Should handle tier boundary at 2000 NCRD", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const amount = ethers.parseEther("1999");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("10000"));
+      await staking.connect(user1).stake(amount);
+      expect(await staking.integrationTier(user1.address)).to.equal(1);
+
+      await staking.connect(user1).stake(ethers.parseEther("1"));
+      expect(await staking.integrationTier(user1.address)).to.equal(2);
+    });
+
+    it("Should handle tier boundary at 10000 NCRD", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const amount = ethers.parseEther("9999");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("10000"));
+      await staking.connect(user1).stake(amount);
+      expect(await staking.integrationTier(user1.address)).to.equal(2);
+
+      await staking.connect(user1).stake(ethers.parseEther("1"));
+      expect(await staking.integrationTier(user1.address)).to.equal(3);
+    });
+  });
+
+  describe("Edge Cases", function () {
+    it("Should handle unstaking zero amount", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const stakeAmount = ethers.parseEther("1000");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), stakeAmount);
+      await staking.connect(user1).stake(stakeAmount);
+
+      await expect(staking.connect(user1).unstake(0))
+        .to.be.revertedWith("Invalid amount");
+    });
+
+    it("Should handle unstaking all staked amount", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const stakeAmount = ethers.parseEther("1000");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), stakeAmount);
+      await staking.connect(user1).stake(stakeAmount);
+      await staking.connect(user1).unstake(stakeAmount);
+
+      expect(await staking.stakedAmount(user1.address)).to.equal(0);
+      expect(await staking.integrationTier(user1.address)).to.equal(0);
+    });
+
+    it("Should handle multiple stake/unstake cycles", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const amount1 = ethers.parseEther("1000");
+      const amount2 = ethers.parseEther("500");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), amount1 + amount2);
+      
+      await staking.connect(user1).stake(amount1);
+      expect(await staking.stakedAmount(user1.address)).to.equal(amount1);
+      
+      await staking.connect(user1).unstake(amount2);
+      expect(await staking.stakedAmount(user1.address)).to.equal(amount1 - amount2);
+      
+      await staking.connect(user1).stake(amount2);
+      expect(await staking.stakedAmount(user1.address)).to.equal(amount1);
+    });
+  });
+
+  describe("Gas Optimization", function () {
+    it("Should use reasonable gas for stake", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const amount = ethers.parseEther("1000");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), amount);
+      const tx = await staking.connect(user1).stake(amount);
+      const receipt = await tx.wait();
+      
+      expect(receipt!.gasUsed).to.be.lt(150000);
+    });
+
+    it("Should use reasonable gas for unstake", async function () {
+      const { staking, ncrdToken, user1 } = await loadFixture(deployStakingFixture);
+      const stakeAmount = ethers.parseEther("1000");
+      const unstakeAmount = ethers.parseEther("500");
+
+      await ncrdToken.connect(user1).approve(await staking.getAddress(), stakeAmount);
+      await staking.connect(user1).stake(stakeAmount);
+      
+      const tx = await staking.connect(user1).unstake(unstakeAmount);
+      const receipt = await tx.wait();
+      
+      expect(receipt!.gasUsed).to.be.lt(100000);
+    });
   });
 });
 

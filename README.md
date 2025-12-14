@@ -34,7 +34,21 @@
 
 NeuroCred solves the problem of blind lending in DeFi by providing portable, on-chain credit identity. Wallets receive a reusable credit score stored as a soulbound NFT, enabling any protocol to make informed lending decisions with a single contract call.
 
-### Features
+### Monitoring & Observability
+
+NeuroCred includes comprehensive monitoring and observability:
+
+- **Error Tracking**: Sentry integration for backend and frontend
+- **Metrics**: Prometheus metrics exposed at `/metrics`
+- **Logging**: Structured JSON logging with correlation IDs
+- **Health Checks**: `/health` (liveness) and `/health/ready` (readiness)
+- **Blockchain Monitoring**: Contract events and transaction tracking
+- **Performance Monitoring**: Slow request detection and alerting
+- **Analytics**: Privacy-compliant user analytics
+
+See [docs/MONITORING.md](docs/MONITORING.md) for complete setup guide.
+
+## Features
 
 - 🤖 **AI-Powered Scoring** - Analyzes transaction history, portfolio composition, and on-chain behavior
 - 🔒 **Soulbound NFT** - Non-transferable Credit Passport stores score on-chain

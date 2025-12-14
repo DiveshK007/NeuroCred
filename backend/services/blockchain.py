@@ -1,4 +1,5 @@
 import os
+import time
 from web3 import Web3
 from eth_account import Account
 from typing import Dict, Optional
@@ -77,11 +78,14 @@ class BlockchainService:
                 "lastUpdated": result[2]
             }
         except Exception as e:
-            print(f"Error getting score from blockchain: {e}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error getting score from blockchain: {e}", exc_info=True)
             return None
     
     async def update_score(self, address: str, score: int, risk_band: int) -> str:
         """Update score on blockchain"""
+        start_time = time.time()
         try:
             checksum_address = Web3.to_checksum_address(address)
             
@@ -110,10 +114,84 @@ class BlockchainService:
             tx_hash_hex = receipt.transactionHash.hex()
             
             # Log transaction details
-            print(f"Transaction successful: {tx_hash_hex}")
-            print(f"Gas used: {receipt.gasUsed}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            transaction_duration = time.time() - start_time
+            
+            logger.info(
+                "Transaction successful",
+                extra={
+                    "address": address,
+                    "tx_hash": tx_hash_hex,
+                    "gas_used": receipt.gasUsed,
+                    "score": score,
+                    "risk_band": risk_band,
+                }
+            )
+            
+            # Record metrics (if available)
+            try:
+                from utils.metrics import record_blockchain_transaction
+                record_blockchain_transaction(
+                    status="success",
+                    contract="CreditPassportNFT",
+                    operation="mintOrUpdate",
+                    duration=transaction_duration,
+                    gas_used=receipt.gasUsed
+                )
+            except ImportError:
+                # Metrics not available in test environment
+                pass
+            
+            # Invalidate caches for this address
+            from utils.cache import invalidate_score_cache, invalidate_pattern
+            invalidate_score_cache(address)
+            invalidate_pattern(f"rpc:getScore:*{address}*")
             
             return tx_hash_hex
+        except ValueError as e:
+            # Handle invalid address format
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Invalid address format: {e}", exc_info=True)
+            
+            # Record error metrics (if available)
+            try:
+                from utils.metrics import record_blockchain_transaction, record_blockchain_rpc_error
+                duration = time.time() - start_time
+                error_type = type(e).__name__
+                record_blockchain_rpc_error(error_type)
+                record_blockchain_transaction(
+                    status="error",
+                    contract="CreditPassportNFT",
+                    operation="mintOrUpdate",
+                    duration=duration
+                )
+            except ImportError:
+                # Metrics not available in test environment
+                pass
+            
+            raise ValueError(f"Invalid address format: {str(e)}")
         except Exception as e:
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error updating score on blockchain: {e}", exc_info=True)
+            
+            # Record error metrics (if available)
+            try:
+                from utils.metrics import record_blockchain_transaction, record_blockchain_rpc_error
+                duration = time.time() - start_time
+                error_type = type(e).__name__
+                record_blockchain_rpc_error(error_type)
+                record_blockchain_transaction(
+                    status="error",
+                    contract="CreditPassportNFT",
+                    operation="mintOrUpdate",
+                    duration=duration
+                )
+            except ImportError:
+                # Metrics not available in test environment
+                pass
+            
             raise Exception(f"Error updating score on blockchain: {str(e)}")
 

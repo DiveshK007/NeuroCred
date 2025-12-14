@@ -31,7 +31,9 @@ class StakingService:
                     abi=self.staking_abi
                 )
             except Exception as e:
-                print(f"Warning: Invalid staking address '{self.staking_address}': {e}. Staking disabled.")
+                from utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.warning(f"Invalid staking address '{self.staking_address}': {e}. Staking disabled.", extra={"error": str(e)})
                 self.staking_contract = None
                 self.staking_address = None
     
@@ -64,7 +66,9 @@ class StakingService:
             amount = self.staking_contract.functions.stakedAmount(checksum_address).call()
             return amount
         except Exception as e:
-            print(f"Error getting staked amount: {e}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error getting staked amount: {e}", exc_info=True)
             return 0
     
     def get_integration_tier(self, address: str) -> int:
@@ -77,7 +81,9 @@ class StakingService:
             tier = self.staking_contract.functions.integrationTier(checksum_address).call()
             return tier
         except Exception as e:
-            print(f"Error getting integration tier: {e}")
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error getting integration tier: {e}", exc_info=True)
             return 0
     
     def calculate_staking_boost(self, tier: int) -> int:

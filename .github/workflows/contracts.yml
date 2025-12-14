@@ -33,7 +33,21 @@ jobs:
       - name: Run tests
         working-directory: ./contracts
         run: npm test
-        continue-on-error: true
+
+      - name: Generate coverage report
+        working-directory: ./contracts
+        run: |
+          COVERAGE=true npm test
+        env:
+          COVERAGE: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./contracts/coverage/coverage.json
+          flags: contracts
+          name: contracts-coverage
+          fail_ci_if_error: false
 
   frontend:
     name: Build Frontend

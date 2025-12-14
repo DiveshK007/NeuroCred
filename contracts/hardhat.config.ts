@@ -1,12 +1,14 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
+import "solidity-coverage";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.20",
+    version: "0.8.22",
     settings: {
       optimizer: {
         enabled: true,
@@ -29,6 +31,32 @@ const config: HardhatUserConfig = {
     tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",
+  },
+  gasReporter: {
+    enabled: process.env.REPORT_GAS !== undefined,
+    currency: "USD",
+  },
+  coverage: {
+    enabled: process.env.COVERAGE !== undefined,
+    exclude: [
+      "test/",
+      "node_modules/",
+      "**/*.test.ts",
+      "**/Mock*.sol",
+    ],
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.QIE_EXPLORER_API_KEY || "",
+    customChains: [
+      {
+        network: "qieTestnet",
+        chainId: parseInt(process.env.QIE_TESTNET_CHAIN_ID || "1983"),
+        urls: {
+          apiURL: "https://testnet.qie.digital/api",
+          browserURL: "https://testnet.qie.digital"
+        }
+      }
+    ]
   },
 };
 

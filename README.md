@@ -9,17 +9,17 @@
 ## Live Demo
 
 - **Frontend**: https://neuro-cred-git-main-diveshk007s-projects.vercel.app
-- **Backend API**: `https://your-deployment.onrender.com` *(Update after deployment)*
-- **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
+- **Backend API**: *Deploy to Render/Railway for full functionality*
+- **Demo Video**: https://youtu.be/HKDrJyicVn0
 
 ## Contracts
 
-- **CreditPassportNFT (Testnet)**: `0xYourContractAddress` *(Add after deployment)*
-- **LendingVault (Q-Loan)**: `0xYourVaultAddress` *(Add after deployment)*
-- **DemoLender**: `0xYourLenderAddress` *(Add after deployment)*
-- **NeuroCredStaking**: `0xYourStakingAddress` *(Add after deployment)*
-- **NCRD Token**: `0xYourTokenAddress` *(Add after QIEDex creation)*
-- **Example mint tx**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+- **CreditPassportNFT (Testnet)**: `0x34904952E5269290B783071f1eBba51c22ef6219`
+- **LendingVault (Q-Loan)**: `0xd840f7E97Eb96d4901666f665A443Ea376e5BA32`
+- **DemoLender**: `0x64092BaCdFd01939E6f38C80C9Bf096cB50aa6C2`
+- **NeuroCredStaking**: `0x3E9943694a37d26987C1af36DE169e631b30F153`
+- **NCRD Token**: `0x7427734468598674645Aa71Ef651218A9Db2be11`
+- **Explorer**: https://testnet.qie.digital/address/0x34904952E5269290B783071f1eBba51c22ef6219
 
 ## QIE Hackathon Requirements
 
@@ -519,12 +519,10 @@ To create the NCRD token via QIEDex:
 ## Links
 
 - **GitHub**: https://github.com/DiveshK007/NeuroCred
-- **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
-- **Live Frontend**: `https://your-deployment.vercel.app` *(Add after deployment)*
-- **Live Backend**: `https://your-deployment.onrender.com` *(Add after deployment)*
-- **Contract Address**: `0xYourContractAddress` *(Add after deployment)*
-- **Explorer**: `https://testnet.qie.digital/address/0xYourContractAddress` *(Add after deployment)*
-- **Example Transaction**: `https://testnet.qie.digital/tx/0xYourTxHash` *(Add after first mint)*
+- **Demo Video**: https://youtu.be/HKDrJyicVn0
+- **Live Frontend**: https://neuro-cred-git-main-diveshk007s-projects.vercel.app
+- **Contract Address**: `0x34904952E5269290B783071f1eBba51c22ef6219`
+- **Explorer**: https://testnet.qie.digital/address/0x34904952E5269290B783071f1eBba51c22ef6219
 
 ---
 

@@ -170,7 +170,7 @@ Visit `http://localhost:3000` to use the application.
 
 ```
 NeuroCred/
-├── contracts/          # Smart contracts (Hardhat)
+├── contracts/         # Smart contracts (Hardhat)
 │   ├── contracts/     # Solidity contracts
 │   ├── scripts/       # Deployment & verification
 │   └── test/          # Contract tests

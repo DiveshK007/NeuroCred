@@ -8,7 +8,7 @@
 
 ## Live Demo
 
-- **Frontend**: `https://your-deployment.vercel.app` *(Update after deployment)*
+- **Frontend**: https://neuro-cred-git-main-diveshk007s-projects.vercel.app
 - **Backend API**: `https://your-deployment.onrender.com` *(Update after deployment)*
 - **Demo Video**: `https://youtu.be/your-video-id` *(Add your video link)*
 

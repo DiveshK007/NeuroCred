@@ -526,14 +526,6 @@ To create the NCRD token via QIEDex:
 
 ---
 
-## Team
-
-**Divesh Kumar**
-- GitHub: [@DiveshK007](https://github.com/DiveshK007)
-- Email: diveshkumar.s007@gmail.com
-
----
-
 ## Security
 
 - All `.env` files are gitignored

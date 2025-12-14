@@ -1,10 +1,27 @@
-import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
-import path from "path";
+
+// Conditionally import Sentry only if available
+let withSentryConfig: any = null;
+try {
+  const sentry = require("@sentry/nextjs");
+  withSentryConfig = sentry.withSentryConfig;
+} catch (e) {
+  // Sentry not installed, use identity function
+  withSentryConfig = (config: any, ...args: any[]) => config;
+}
 
 const nextConfig: NextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
+  // Disable Turbopack - use webpack for Sentry compatibility
+  // Turbopack doesn't fully support Sentry yet
+  // This will be used when --webpack flag is passed
+  webpack: (config, { isServer }) => {
+    return config;
+  },
+  // Add empty turbopack config to silence the error
+  // But we'll use --webpack flag to force webpack usage
+  turbopack: {},
   // CDN and static asset optimization
   images: {
     formats: ['image/avif', 'image/webp'],
@@ -14,8 +31,6 @@ const nextConfig: NextConfig = {
   },
   // Compress static assets
   compress: true,
-  // Optimize production builds
-  swcMinify: true,
   // Static asset caching
   async headers() {
     return [
@@ -50,7 +65,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Export config with Sentry
+// Export config with Sentry (if available)
 export default withSentryConfig(
   nextConfig,
   {
@@ -74,4 +89,4 @@ export default withSentryConfig(
     // Automatically tree-shake Sentry logger statements to reduce bundle size
     automaticVercelMonitors: true,
   }
-);
+) || nextConfig;

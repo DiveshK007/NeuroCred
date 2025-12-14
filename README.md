@@ -221,7 +221,7 @@ npx hardhat run scripts/checkRoles.ts --network qieTestnet
 
 Update `backend/.env` with contract addresses:
 ```env
-CREDIT_PASSPORT_ADDRESS=0x...  # From deployment
+CREDIT_PASSPORT_NFT_ADDRESS=0x...  # From deployment (or use CREDIT_PASSPORT_ADDRESS for backward compatibility)
 STAKING_ADDRESS=0x...          # From deployment (if deployed)
 DEMO_LENDER_ADDRESS=0x...      # From deployment
 NCRD_TOKEN_ADDRESS=0x...       # From QIEDex or deployment
@@ -255,7 +255,7 @@ Visit `http://localhost:3000` to use the application.
 ### Quick Test Flow (Prove $500 Criteria)
 
 1. Deploy contract to QIE testnet. Save address.
-2. Configure backend `.env` with `BACKEND_PK` and `CREDIT_PASSPORT_ADDRESS`.
+2. Configure backend `.env` with `BACKEND_PK` and `CREDIT_PASSPORT_NFT_ADDRESS` (or `CREDIT_PASSPORT_ADDRESS` for backward compatibility).
 3. From frontend, connect wallet and press "Generate Credit Passport".
 4. Confirm wallet popup (if required) or backend signs transaction.
 5. Wait for tx to complete; open explorer and copy the tx URL.

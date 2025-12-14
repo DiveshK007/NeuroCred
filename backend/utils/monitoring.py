@@ -2,11 +2,21 @@
 Monitoring and observability utilities
 """
 import os
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.integrations.httpx import HttpxIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    from sentry_sdk.integrations.httpx import HttpxIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+    SENTRY_AVAILABLE = True
+except ImportError:
+    SENTRY_AVAILABLE = False
+    sentry_sdk = None
+    FastApiIntegration = None
+    LoggingIntegration = None
+    HttpxIntegration = None
+    SqlalchemyIntegration = None
+
 from typing import Optional
 
 
@@ -27,6 +37,10 @@ def init_sentry(
         traces_sample_rate: Sample rate for performance traces (0.0 to 1.0)
         enable_tracing: Enable performance monitoring
     """
+    if not SENTRY_AVAILABLE:
+        # Sentry SDK not installed, skip initialization
+        return
+    
     dsn = dsn or os.getenv("SENTRY_DSN_BACKEND")
     if not dsn:
         # Sentry not configured, skip initialization
@@ -82,6 +96,8 @@ def add_custom_tags(event):
 
 def capture_exception(error: Exception, **kwargs):
     """Capture an exception in Sentry with additional context"""
+    if not SENTRY_AVAILABLE:
+        return
     with sentry_sdk.push_scope() as scope:
         # Add custom context
         for key, value in kwargs.items():
@@ -92,6 +108,8 @@ def capture_exception(error: Exception, **kwargs):
 
 def capture_message(message: str, level: str = "info", **kwargs):
     """Capture a message in Sentry with additional context"""
+    if not SENTRY_AVAILABLE:
+        return
     with sentry_sdk.push_scope() as scope:
         # Add custom context
         for key, value in kwargs.items():
@@ -116,11 +134,14 @@ def set_user_context(address: Optional[str] = None, **kwargs):
     # Add any additional context
     user_context.update(kwargs)
     
-    sentry_sdk.set_user(user_context)
+    if SENTRY_AVAILABLE:
+        sentry_sdk.set_user(user_context)
 
 
 def add_breadcrumb(message: str, category: str = "default", level: str = "info", **kwargs):
     """Add a breadcrumb to Sentry"""
+    if not SENTRY_AVAILABLE:
+        return
     sentry_sdk.add_breadcrumb(
         message=message,
         category=category,

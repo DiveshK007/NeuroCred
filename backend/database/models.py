@@ -190,7 +190,7 @@ class Transaction(Base):
     contract_address = Column(String(42), nullable=True, index=True)  # Contract interacted with
     method_id = Column(String(10), nullable=True)  # First 4 bytes of method signature
     token_transfers_count = Column(Integer, default=0)  # Number of token transfers in this tx
-    metadata = Column(JSON, nullable=True)  # Additional metadata
+    tx_metadata = Column(JSON, nullable=True)  # Additional metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
     # Relationships

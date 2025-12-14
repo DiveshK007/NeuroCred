@@ -13,7 +13,7 @@ import {
   Wallet,
   LogOut
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 import { NeuroCredLogo } from "@/components/NeuroCredLogo";
 
 interface NavItem {

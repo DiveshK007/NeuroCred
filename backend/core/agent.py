@@ -30,31 +30,66 @@ class NeuroLendAgent:
         Returns:
             Dict with 'response' (str) and optionally 'offer' (dict) and 'signature' (str)
         """
-        message_lower = message.lower()
+        message_lower = message.lower().strip()
+        
+        # Get user's score info first
+        score_info = await self._get_score_info(user_address)
+        score = score_info['score']
+        risk_band = score_info['riskBand']
+        
+        # Check for greetings
+        greeting_keywords = ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening']
+        is_greeting = any(keyword in message_lower for keyword in greeting_keywords)
         
         # Check if user is requesting a loan
-        loan_keywords = ['loan', 'borrow', 'lend', 'need', 'want', 'get']
+        loan_keywords = ['loan', 'borrow', 'lend', 'need', 'want', 'get', 'request', 'apply']
         is_loan_request = any(keyword in message_lower for keyword in loan_keywords)
+        
+        # Check for questions about score
+        score_keywords = ['score', 'credit', 'rating', 'risk', 'tier', 'status']
+        is_score_question = any(keyword in message_lower for keyword in score_keywords)
         
         # Extract amount if mentioned
         amount = self._extract_amount(message)
         
-        if is_loan_request and amount:
+        # Handle different types of messages
+        if is_greeting:
+            risk_description = {1: "Low Risk", 2: "Medium Risk", 3: "High Risk"}.get(risk_band, "Unknown")
+            return {
+                "response": f"Hello! 👋 I'm your NeuroLend AI assistant. I can help you get a personalized loan based on your NeuroCred score.\n\nYour current score is **{score}** ({risk_description}). This affects the loan terms I can offer you.\n\nHow can I help you today? You can:\n- Ask for a loan (e.g., 'I need 100 QIE')\n- Ask about your credit score\n- Get information about loan terms",
+                "offer": None,
+                "signature": None,
+                "requiresSignature": False
+            }
+        elif is_score_question:
+            risk_description = {1: "Low Risk", 2: "Medium Risk", 3: "High Risk"}.get(risk_band, "Unknown")
+            risk_explanation = {
+                1: "Excellent! You qualify for the best loan terms with low interest rates.",
+                2: "Good! You can get competitive loan terms with moderate interest rates.",
+                3: "Fair. You can still get loans, but with higher interest rates and more collateral required."
+            }.get(risk_band, "Unknown risk level.")
+            
+            return {
+                "response": f"📊 **Your NeuroCred Score: {score}**\n\n**Risk Band:** {risk_description}\n\n{risk_explanation}\n\nWould you like to apply for a loan? Just tell me how much you need!",
+                "offer": None,
+                "signature": None,
+                "requiresSignature": False
+            }
+        elif is_loan_request and amount:
             # Generate loan offer
             return await self._generate_loan_offer(user_address, amount)
         elif is_loan_request:
             # Ask for amount
             return {
-                "response": "I'd be happy to help you get a loan! How much QIE would you like to borrow?",
+                "response": "I'd be happy to help you get a loan! 💰\n\nHow much QIE would you like to borrow? Just tell me the amount (e.g., 'I need 100 QIE' or 'I want to borrow 500 QIE').",
                 "offer": None,
                 "signature": None,
                 "requiresSignature": False
             }
         else:
-            # General conversation
-            score_info = await self._get_score_info(user_address)
+            # General conversation - be more helpful
             return {
-                "response": f"Hello! I'm your NeuroLend AI assistant. Your current NeuroCred score is {score_info['score']} ({score_info['riskBand']}). How can I help you today?",
+                "response": f"I'm here to help you with loans! 💬\n\nYour NeuroCred score is **{score}** (Risk Band {risk_band}).\n\nYou can:\n- Request a loan: 'I need 100 QIE'\n- Ask about your score: 'What's my credit score?'\n- Get loan information: 'What are the loan terms?'\n\nWhat would you like to do?",
                 "offer": None,
                 "signature": None,
                 "requiresSignature": False

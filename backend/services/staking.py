@@ -9,7 +9,7 @@ class StakingService:
     """Service for interacting with NeuroCredStaking contract"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
+        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.staking_address = os.getenv("STAKING_ADDRESS", "").strip()
         

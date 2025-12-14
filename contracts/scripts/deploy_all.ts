@@ -116,7 +116,7 @@ async function main() {
     
     console.log("\n📝 Next Steps:");
     console.log("   1. Add these addresses to backend/.env:");
-    console.log(`      CREDIT_PASSPORT_ADDRESS=${passportAddress}`);
+    console.log(`      CREDIT_PASSPORT_NFT_ADDRESS=${passportAddress}`);
     if (ncrdTokenAddress && ncrdTokenAddress !== "0x0000000000000000000000000000000000000000") {
       console.log(`      STAKING_ADDRESS=<staking_address>`);
     }

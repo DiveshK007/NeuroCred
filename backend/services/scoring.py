@@ -1,16 +1,18 @@
 import os
+import time
 from typing import Dict
 from web3 import Web3
 import requests
 from models.score import WalletFeatures, ScoreResult
 from services.oracle import QIEOracleService
 from services.staking import StakingService
+from utils.metrics import record_score_computation
 
 class ScoringService:
     """AI-powered credit scoring service"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
+        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.explorer_url = os.getenv("QIE_EXPLORER_URL", "https://testnet.qie.digital")
         self.oracle_service = QIEOracleService()
@@ -18,6 +20,7 @@ class ScoringService:
     
     async def compute_score(self, address: str) -> Dict:
         """Compute credit score for a wallet address with oracle and staking integration"""
+        start_time = time.time()
         try:
             # Fetch wallet data
             features = await self._extract_features(address)

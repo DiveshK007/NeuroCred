@@ -49,26 +49,72 @@ export default function QIEStaking({ address, provider }: QIEStakingProps) {
   }, [address, provider, stakingAddress]);
 
   const loadStakingInfo = async () => {
-    if (!address || !provider || !stakingAddress) return;
+    if (!address || !provider) return;
+
+    // Check if staking contract is configured
+    if (!stakingAddress || stakingAddress === '0x' || stakingAddress.startsWith('0xYour') || stakingAddress.length !== 42) {
+      // Silently handle unconfigured contract - this is expected
+      setStakedAmount('0');
+      setTier(0);
+      return;
+    }
 
     try {
+      // Verify contract exists at address
+      const code = await provider.getCode(stakingAddress);
+      if (code === '0x' || code === '0x0') {
+        // Silently handle undeployed contract - this is expected
+        setStakedAmount('0');
+        setTier(0);
+        return;
+      }
+
       const stakingContract = new ethers.Contract(stakingAddress, STAKING_ABI, provider);
-      const [staked, tierValue] = await Promise.all([
-        stakingContract.stakedAmount(address),
-        stakingContract.integrationTier(address)
-      ]);
+      
+      // Try to call methods with error handling
+      let staked = 0n;
+      let tierValue = 0;
+      
+      try {
+        const result = await Promise.all([
+          stakingContract.stakedAmount(address),
+          stakingContract.integrationTier(address)
+        ]);
+        staked = result[0];
+        tierValue = Number(result[1]);
+      } catch (contractError: any) {
+        // If contract call fails (method doesn't exist or returns empty), use defaults
+        // Suppress console errors for expected failures (contract not deployed, BAD_DATA)
+        if (contractError.code !== 'BAD_DATA' && !contractError.message?.includes('could not decode')) {
+          // Only log unexpected errors
+          console.warn('Contract method call failed:', contractError.message);
+        }
+        staked = 0n;
+        tierValue = 0;
+      }
 
       setStakedAmount(ethers.formatEther(staked));
-      setTier(Number(tierValue));
+      setTier(tierValue);
 
-      if (ncrdTokenAddress) {
-        const tokenContract = new ethers.Contract(ncrdTokenAddress, ERC20_ABI, provider);
-        const balance = await tokenContract.balanceOf(address);
-        const decimals = await tokenContract.decimals();
-        setNcrdBalance(ethers.formatUnits(balance, decimals));
+      if (ncrdTokenAddress && ncrdTokenAddress !== '0x' && !ncrdTokenAddress.startsWith('0xYour')) {
+        try {
+          const tokenCode = await provider.getCode(ncrdTokenAddress);
+          if (tokenCode !== '0x' && tokenCode !== '0x0') {
+            const tokenContract = new ethers.Contract(ncrdTokenAddress, ERC20_ABI, provider);
+            const balance = await tokenContract.balanceOf(address);
+            const decimals = await tokenContract.decimals();
+            setNcrdBalance(ethers.formatUnits(balance, decimals));
+          }
+        } catch (tokenError) {
+          console.warn('Error loading NCRD balance:', tokenError);
+          setNcrdBalance('0');
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading staking info:', error);
+      // Set defaults on error
+      setStakedAmount('0');
+      setTier(0);
     }
   };
 
@@ -132,12 +178,41 @@ export default function QIEStaking({ address, provider }: QIEStakingProps) {
   const nextTier = tier < 3 ? tierInfo[(tier + 1) as keyof typeof tierInfo] : null;
   const progressToNext = nextTier ? Math.min((stakedNum / nextTier.threshold) * 100, 100) : 100;
 
-  if (!address || !stakingAddress) {
+  if (!address) {
     return (
       <div className="glass rounded-xl p-8 text-center">
         <p className="text-text-secondary">
           Connect your wallet to view staking options.
         </p>
+      </div>
+    );
+  }
+
+  // Check if staking contract is configured
+  const isStakingConfigured = stakingAddress && 
+    stakingAddress !== '0x' && 
+    !stakingAddress.startsWith('0xYour') &&
+    stakingAddress.length === 42;
+
+  if (!isStakingConfigured) {
+    return (
+      <div className="glass rounded-xl p-8 text-center space-y-4">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h2 className="text-2xl font-bold mb-2">Staking Contract Not Configured</h2>
+        <p className="text-text-secondary mb-4">
+          The staking contract address is not set. To use staking features:
+        </p>
+        <div className="text-left bg-white/5 rounded-lg p-4 max-w-2xl mx-auto">
+          <p className="text-sm text-text-secondary mb-2">1. Deploy NeuroCredStaking contract (or use existing deployment)</p>
+          <p className="text-sm text-text-secondary mb-2">2. Add to <code className="bg-white/10 px-2 py-1 rounded">frontend/.env.local</code>:</p>
+          <pre className="bg-black/20 p-3 rounded text-xs overflow-x-auto">
+{`NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS=0xYourStakingAddress
+NEXT_PUBLIC_NCRD_TOKEN_ADDRESS=0xYourNCRDTokenAddress`}
+          </pre>
+          <p className="text-sm text-text-secondary mt-4">
+            <strong>Note:</strong> Staking is optional. You can still use other features like credit scoring and lending.
+          </p>
+        </div>
       </div>
     );
   }

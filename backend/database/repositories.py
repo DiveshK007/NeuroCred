@@ -202,7 +202,7 @@ class UserDataRepository:
             
             if existing:
                 if metadata:
-                    existing.metadata = metadata
+                    existing.tx_metadata = metadata
                 existing.updated_at = datetime.utcnow()
                 return existing
             else:

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, useAnimation } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 interface CreditScoreOrbProps {
   score: number;

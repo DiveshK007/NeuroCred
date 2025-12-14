@@ -6,6 +6,8 @@ import { HeroSection } from "@/components/home/HeroSection";
 import { useWallet } from "@/contexts/WalletContext";
 import { handleApiError, formatError } from "@/lib/errors";
 import { showErrorToast } from "@/components/ui/ErrorToast";
+import { isOnboardingCompleted } from "@/lib/onboarding";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -49,17 +51,32 @@ export default function Home() {
 
       if (!response.ok) {
         await handleApiError(response);
+        return; // Exit early if there's an error
       }
 
       const data = await response.json();
-      setScore(data.score);
-    } catch (error) {
-      const formattedError = formatError(error);
-      setError(error);
-      showErrorToast({
-        error,
-        onRetry: () => generateScore(address),
-      });
+      if (data && typeof data.score === 'number') {
+        setScore(data.score);
+      } else {
+        throw new Error('Invalid response format: score not found');
+      }
+    } catch (error: any) {
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        const networkError = new Error('Network error: Unable to connect to the server. Please check your internet connection.');
+        setError(networkError);
+        showErrorToast({
+          error: networkError,
+          onRetry: () => generateScore(address),
+        });
+      } else {
+        const formattedError = formatError(error);
+        setError(error);
+        showErrorToast({
+          error,
+          onRetry: () => generateScore(address),
+        });
+      }
     } finally {
       setIsLoading(false);
     }

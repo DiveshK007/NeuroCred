@@ -10,7 +10,7 @@ class QIEOracleService:
     """Service for interacting with QIE Oracles"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
+        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         # QIE has 7 oracles - these are example addresses (update with actual QIE oracle addresses)
         self.oracle_addresses = {

@@ -23,7 +23,6 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
   const [isLoading, setIsLoading] = useState(false);
 
   const lenderAddress = process.env.NEXT_PUBLIC_DEMO_LENDER_ADDRESS;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
     if (address && lenderAddress && provider) {
@@ -31,25 +30,63 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
     } else if (score !== null && riskBand !== null) {
       calculateFromScore();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, lenderAddress, provider, score, riskBand, collateralValue]);
 
   const loadLTV = async () => {
-    if (!address || !lenderAddress || !provider) return;
+    if (!address || !provider) return;
+
+    // Check if lender contract is configured
+    if (!lenderAddress || lenderAddress === '0x' || lenderAddress.startsWith('0xYour') || lenderAddress.length !== 42) {
+      // Silently handle unconfigured contract - use score-based calculation
+      if (score !== null && riskBand !== null) {
+        calculateFromScore();
+      }
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // Verify contract exists at address
+      const code = await provider.getCode(lenderAddress);
+      if (code === '0x' || code === '0x0') {
+        // Silently handle undeployed contract - use score-based calculation
+        if (score !== null && riskBand !== null) {
+          calculateFromScore();
+        }
+        setIsLoading(false);
+        return;
+      }
+
       const lenderContract = new ethers.Contract(lenderAddress, DEMO_LENDER_ABI, provider);
-      const ltv = await lenderContract.getLTV(address);
-      const ltvValue = Number(ltv);
-      setLtvBps(ltvValue);
+      
+      try {
+        const ltv = await lenderContract.getLTV(address);
+        const ltvValue = Number(ltv);
+        setLtvBps(ltvValue);
 
-      const collateralWei = ethers.parseEther(collateralValue.toString());
-      const maxBorrowWei = await lenderContract.calculateMaxBorrow(address, collateralWei);
-      setMaxBorrow(Number(ethers.formatEther(maxBorrowWei)));
+        const collateralWei = ethers.parseEther(collateralValue.toString());
+        const maxBorrowWei = await lenderContract.calculateMaxBorrow(address, collateralWei);
+        setMaxBorrow(Number(ethers.formatEther(maxBorrowWei)));
 
-      calculateInterestRate(ltvValue);
-    } catch (error) {
-      console.error('Error loading LTV:', error);
+        calculateInterestRate(ltvValue);
+      } catch (contractError: any) {
+        // If contract method fails (doesn't exist or returns empty), fall back to score-based
+        // Suppress console errors for expected failures (contract not deployed, BAD_DATA)
+        if (contractError.code !== 'BAD_DATA' && !contractError.message?.includes('could not decode')) {
+          // Only log unexpected errors
+          console.warn('Contract method call failed:', contractError.message);
+        }
+        if (score !== null && riskBand !== null) {
+          calculateFromScore();
+        }
+      }
+    } catch (error: any) {
+      // Suppress expected errors (BAD_DATA, could not decode) - these are normal when contracts aren't deployed
+      if (error.code !== 'BAD_DATA' && !error.message?.includes('could not decode')) {
+        console.error('Error loading LTV:', error);
+      }
+      // Fall back to score-based calculation
       if (score !== null && riskBand !== null) {
         calculateFromScore();
       }
@@ -95,7 +132,6 @@ export default function DeFiDemo({ address, provider, score, riskBand }: DeFiDem
 
   const currentRisk = riskBand !== null ? riskBandInfo[riskBand as keyof typeof riskBandInfo] : riskBandInfo[0];
   const ltvPercent = ltvBps / 100;
-  const ltvAngle = (ltvPercent / 100) * 180;
   const circumference = Math.PI * 100;
   const strokeDashoffset = circumference - (ltvPercent / 100) * circumference;
 

@@ -54,7 +54,8 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || errorData.detail || 'Failed to get response');
       }
 
       const data = await response.json();
@@ -69,15 +70,26 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
           signature: data.signature,
         }
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
-      setMessages([
-        ...newMessages,
-        {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
-        }
-      ]);
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        setMessages([
+          ...newMessages,
+          {
+            role: 'assistant',
+            content: '❌ Network error: Unable to connect to the server. Please check if the backend is running on ' + API_URL,
+          }
+        ]);
+      } else {
+        setMessages([
+          ...newMessages,
+          {
+            role: 'assistant',
+            content: `Sorry, I encountered an error: ${error.message || 'Please try again.'}`,
+          }
+        ]);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingSpinner } from './LoadingSpinner';
-import { cn } from '@/lib/utils';
+import { cn } from '@/app/lib/utils';
 
 interface LoadingOverlayProps {
   isLoading: boolean;

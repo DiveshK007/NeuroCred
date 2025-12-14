@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { Layout } from '@/components/layout/Layout';
-import ChatConsole from '../components/ChatConsole';
-import ScoreDisplay from '../components/ScoreDisplay';
+import ChatConsole from '@/app/components/ChatConsole';
+import ScoreDisplay from '@/app/components/ScoreDisplay';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
@@ -36,33 +36,66 @@ export default function LendPage() {
         const data = await response.json();
         setScore(data.score);
         setRiskBand(data.riskBand);
-        setExplanation(data.explanation);
+        setExplanation(data.explanation || '');
+      } else {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        console.error('Error loading score:', errorData.message || 'Failed to load score');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading score:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.error('Network error: Unable to connect to backend at', API_URL);
+      }
     }
   };
 
   const loadActiveLoans = async (addr: string, prov: any) => {
     if (!LENDING_VAULT_ADDRESS || !prov) return;
     
+    // Check if contract address is valid
+    if (LENDING_VAULT_ADDRESS === '0x' || LENDING_VAULT_ADDRESS.startsWith('0xYour') || LENDING_VAULT_ADDRESS.length !== 42) {
+      // Silently skip if contract not configured
+      return;
+    }
+    
     try {
+      // Verify contract exists at address
+      const code = await prov.getCode(LENDING_VAULT_ADDRESS);
+      if (code === '0x' || code === '0x0') {
+        // Silently skip if contract not deployed
+        return;
+      }
+      
       const contract = new ethers.Contract(LENDING_VAULT_ADDRESS, LENDING_VAULT_ABI, prov);
-      const loanIds = await contract.getBorrowerLoans(addr);
       
-      const loans = await Promise.all(
-        loanIds.map(async (id: bigint) => {
-          const totalOwed = await contract.calculateTotalOwed(id);
-          return {
-            id: Number(id),
-            totalOwed: ethers.formatEther(totalOwed),
-          };
-        })
-      );
-      
-      setActiveLoans(loans);
-    } catch (error) {
-      console.error('Error loading loans:', error);
+      try {
+        const loanIds = await contract.getBorrowerLoans(addr);
+        
+        const loans = await Promise.all(
+          loanIds.map(async (id: bigint) => {
+            const totalOwed = await contract.calculateTotalOwed(id);
+            return {
+              id: Number(id),
+              totalOwed: ethers.formatEther(totalOwed),
+            };
+          })
+        );
+        
+        setActiveLoans(loans);
+      } catch (contractError: any) {
+        // Suppress expected errors (BAD_DATA, could not decode) - these are normal when contracts aren't deployed
+        if (contractError.code !== 'BAD_DATA' && !contractError.message?.includes('could not decode')) {
+          console.error('Error calling contract methods:', contractError);
+        }
+        // Set empty loans on error
+        setActiveLoans([]);
+      }
+    } catch (error: any) {
+      // Suppress expected errors
+      if (error.code !== 'BAD_DATA' && !error.message?.includes('could not decode')) {
+        console.error('Error loading loans:', error);
+      }
+      setActiveLoans([]);
     }
   };
 
@@ -73,15 +106,67 @@ export default function LendPage() {
       return;
     }
 
+    if (!signature || typeof signature !== 'string') {
+      alert('Error: Invalid signature received from backend. Please try generating a new loan offer.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(LENDING_VAULT_ADDRESS, LENDING_VAULT_ABI, signer);
       
-      const signatureBytes = ethers.getBytes(signature);
+      // Normalize signature: ensure it has "0x" prefix and is a valid hex string
+      // Backend returns signature without "0x" prefix, so we need to add it
+      let normalizedSignature = signature.trim();
       
-      const tx = await contract.createLoan(offer, signatureBytes, {
-        value: offer.collateralAmount,
+      // Remove any existing "0x" prefix to avoid duplication
+      if (normalizedSignature.startsWith('0x') || normalizedSignature.startsWith('0X')) {
+        normalizedSignature = normalizedSignature.slice(2);
+      }
+      
+      // Validate it's a valid hex string (only hex characters)
+      if (!/^[a-fA-F0-9]+$/.test(normalizedSignature)) {
+        throw new Error(`Invalid signature format: contains non-hexadecimal characters. Signature length: ${normalizedSignature.length}`);
+      }
+      
+      // Validate signature length (should be 128 hex chars = 64 bytes for r+s, or 130 = 65 bytes with v)
+      // EIP-712 signatures are typically 65 bytes (130 hex chars) = 32 bytes r + 32 bytes s + 1 byte v
+      if (normalizedSignature.length !== 128 && normalizedSignature.length !== 130) {
+        throw new Error(`Invalid signature length: expected 128 or 130 hex characters, got ${normalizedSignature.length}`);
+      }
+      
+      // Add "0x" prefix for ethers.js
+      normalizedSignature = `0x${normalizedSignature}`;
+      
+      // Convert signature to bytes - ethers.js Contract accepts hex strings for bytes parameters
+      // We'll pass the normalized hex string directly, as ethers will handle the conversion
+      if (!ethers.isHexString(normalizedSignature)) {
+        throw new Error('Signature is not a valid hex string after normalization');
+      }
+      
+      // Verify signature length (should be 130 hex chars with 0x = 65 bytes for EIP-712)
+      const signatureBytes = ethers.getBytes(normalizedSignature);
+      if (signatureBytes.length !== 65) {
+        console.warn(`Signature length is ${signatureBytes.length} bytes, expected 65. Proceeding anyway.`);
+      }
+      
+      // Ensure offer values are properly formatted
+      // For ethers.js v6, we can pass BigInt directly, but ensure all values are properly converted
+      const formattedOffer = {
+        borrower: offer.borrower || address,
+        amount: typeof offer.amount === 'bigint' ? offer.amount : BigInt(String(offer.amount || 0)),
+        collateralAmount: typeof offer.collateralAmount === 'bigint' ? offer.collateralAmount : BigInt(String(offer.collateralAmount || 0)),
+        interestRate: typeof offer.interestRate === 'bigint' ? offer.interestRate : BigInt(String(offer.interestRate || 0)),
+        duration: typeof offer.duration === 'bigint' ? offer.duration : BigInt(String(offer.duration || 0)),
+        nonce: typeof offer.nonce === 'bigint' ? offer.nonce : BigInt(String(offer.nonce || 0)),
+        expiry: typeof offer.expiry === 'bigint' ? offer.expiry : BigInt(String(offer.expiry || 0)),
+      };
+      
+      // Pass signature as hex string - ethers.js will convert it to bytes
+      // The contract expects bytes, and ethers.js Contract methods accept hex strings for bytes parameters
+      const tx = await contract.createLoan(formattedOffer, normalizedSignature, {
+        value: formattedOffer.collateralAmount,
       });
       
       await tx.wait();
@@ -90,7 +175,8 @@ export default function LendPage() {
       await loadActiveLoans(address, provider);
     } catch (error: any) {
       console.error('Error creating loan:', error);
-      alert(`Error: ${error.message}`);
+      const errorMessage = error.reason || error.message || 'Unknown error occurred';
+      alert(`Error creating loan: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

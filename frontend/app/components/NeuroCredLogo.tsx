@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 
 interface NeuroCredLogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -15,9 +16,12 @@ export function NeuroCredLogo({
   size = 'md', 
   showText = true, 
   className = '',
-  useImage = false,
-  imagePath = '/neurocred-logo.png'
+  useImage = true, // Default to using image logo
+  imagePath = '/neurocred-logo.svg' // Try SVG first, fallback to PNG
 }: NeuroCredLogoProps) {
+  const [imageError, setImageError] = useState(false);
+  const [currentImagePath, setCurrentImagePath] = useState(imagePath);
+  
   const sizeClasses = {
     sm: { icon: 'w-8 h-8', text: 'text-sm' },
     md: { icon: 'w-10 h-10', text: 'text-base' },
@@ -26,22 +30,40 @@ export function NeuroCredLogo({
 
   const currentSize = sizeClasses[size];
 
+  // Handle image error with proper state management (no DOM manipulation)
+  const handleImageError = () => {
+    if (currentImagePath.endsWith('.svg')) {
+      // Try PNG version
+      setCurrentImagePath('/neurocred-logo.png');
+    } else {
+      // Fallback to built-in SVG
+      setImageError(true);
+    }
+  };
+
+  // Reset error state when imagePath changes
+  useEffect(() => {
+    setImageError(false);
+    setCurrentImagePath(imagePath);
+  }, [imagePath]);
+
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       {/* Logo - Image or SVG */}
-      {useImage ? (
+      {useImage && !imageError ? (
         <motion.div
           className={`${currentSize.icon} relative flex-shrink-0`}
           whileHover={{ scale: 1.05 }}
           transition={{ duration: 0.2 }}
         >
           <Image
-            src={imagePath}
+            src={currentImagePath}
             alt="NeuroCred Logo"
             width={size === 'sm' ? 32 : size === 'md' ? 40 : 64}
             height={size === 'sm' ? 32 : size === 'md' ? 40 : 64}
             className="object-contain"
             priority
+            onError={handleImageError}
           />
         </motion.div>
       ) : (

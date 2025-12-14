@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useWallet } from "@/contexts/WalletContext";
 import { 
@@ -20,37 +20,9 @@ import { Button } from "@/components/ui/button";
 import { CreditScoreOrb } from "@/components/credit/CreditScoreOrb";
 import { handleApiError, formatError } from "@/lib/errors";
 import { showErrorToast } from "@/components/ui/ErrorToast";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-const statsData = [
-  {
-    icon: Radio,
-    label: "Oracle Price",
-    value: "$2.45",
-    subtext: "QIE/USD",
-    live: true,
-  },
-  {
-    icon: TrendingUp,
-    label: "Staking Tier",
-    value: "Silver",
-    subtext: "+5% Boost",
-    color: "text-primary",
-  },
-  {
-    icon: Lock,
-    label: "Staked Amount",
-    value: "5,000",
-    subtext: "NCRD",
-  },
-  {
-    icon: Wallet,
-    label: "Wallet Balance",
-    value: "1,234.56",
-    subtext: "QIE",
-  },
-];
 
 const quickActions = [
   { icon: Lock, label: "Stake NCRD", path: "/stake" },
@@ -69,15 +41,9 @@ export default function Dashboard() {
   const [stakingTier, setStakingTier] = useState<string>('None');
   const [stakedAmount, setStakedAmount] = useState<string>('0');
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
 
-  // Load dashboard data when wallet is connected
-  useEffect(() => {
-    if (address) {
-      loadDashboardData(address);
-    }
-  }, [address]);
-
-  const loadDashboardData = async (addr: string) => {
+  const loadDashboardData = useCallback(async (addr: string) => {
     setIsLoading(true);
     setIsInitialLoad(true);
     try {
@@ -114,7 +80,7 @@ export default function Dashboard() {
         if (stakingRes.ok) {
           const stakingData = await stakingRes.json();
           setStakingTier(stakingData.tierName || 'None');
-          setStakedAmount(stakingData.stakedAmount ? ethers.formatEther(stakingData.stakedAmount.toString()) : '0');
+          setStakedAmount(stakingData.stakedAmount ? (stakingData.stakedAmount / 1e18).toFixed(2) : '0');
           setStakingBoost(stakingData.scoreBoost || 0);
         }
       } catch (e) {
@@ -130,7 +96,18 @@ export default function Dashboard() {
       setIsLoading(false);
       setIsInitialLoad(false);
     }
-  };
+  }, []);
+
+  // Load dashboard data when wallet is connected
+  useEffect(() => {
+    if (address) {
+      loadDashboardData(address);
+    } else {
+      // Reset initial load state if no address (show empty state)
+      setIsInitialLoad(false);
+      setIsLoading(false);
+    }
+  }, [address, loadDashboardData]);
 
   const handleConnect = async () => {
     await connect();
@@ -171,7 +148,8 @@ export default function Dashboard() {
     },
   ];
 
-  if (isInitialLoad && isLoading) {
+  // Show loading state only on initial load
+  if (isInitialLoad) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">

@@ -28,7 +28,7 @@ class LoanOfferSigner:
             raise ValueError("AI_SIGNER_PRIVATE_KEY or BACKEND_PK must be set")
         
         self.account = Account.from_key(self.private_key)
-        self.rpc_url = os.getenv("QIE_TESTNET_RPC_URL", "https://testnet.qie.digital")
+        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         
         # Get chain ID

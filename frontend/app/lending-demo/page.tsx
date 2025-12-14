@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/layout/Layout';
-import DeFiDemo from '../components/DeFiDemo';
+import DeFiDemo from '@/app/components/DeFiDemo';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
@@ -21,24 +21,66 @@ export default function LendingDemoPage() {
 
     setIsLoading(true);
     try {
+      // First, verify backend is reachable by checking health endpoint
+      try {
+        const healthCheck = await fetch(`${API_URL}/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000), // 5 second timeout
+        });
+        if (!healthCheck.ok) {
+          throw new Error(`Backend health check failed with status ${healthCheck.status}`);
+        }
+      } catch (healthError: any) {
+        if (healthError.name === 'AbortError' || healthError.name === 'TypeError') {
+          throw new Error(
+            `Cannot connect to backend at ${API_URL}. ` +
+            `Please ensure the backend is running on port 8000. ` +
+            `Start it with: cd backend && python -m uvicorn app:app --reload --port 8000`
+          );
+        }
+        throw healthError;
+      }
+
       const response = await fetch(`${API_URL}/api/score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ address }),
+        signal: AbortSignal.timeout(30000), // 30 second timeout for score generation
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate score');
+        const errorData = await response.json().catch(() => ({ 
+          message: response.statusText,
+          detail: `HTTP ${response.status}: ${response.statusText}`
+        }));
+        throw new Error(errorData.detail || errorData.message || `Server returned error: ${response.status}`);
       }
 
       const data = await response.json();
-      setScore(data.score);
-      setRiskBand(data.riskBand);
-    } catch (error) {
+      if (data && typeof data.score === 'number') {
+        setScore(data.score);
+        setRiskBand(data.riskBand || 0);
+      } else {
+        throw new Error('Invalid response format: score not found in response');
+      }
+    } catch (error: any) {
       console.error('Error generating score:', error);
-      alert('Failed to generate score. Please try again.');
+      // Provide user-friendly error messages
+      if (error.name === 'AbortError') {
+        alert('Request timed out. The backend may be slow or unresponsive. Please try again.');
+      } else if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+        alert(
+          `Network error: Cannot connect to backend at ${API_URL}\n\n` +
+          `Troubleshooting:\n` +
+          `1. Ensure backend is running: cd backend && python -m uvicorn app:app --reload --port 8000\n` +
+          `2. Check that API_URL is correct: ${API_URL}\n` +
+          `3. Verify backend/.env has all required variables`
+        );
+      } else {
+        alert(`Failed to generate score: ${error.message || 'Unknown error. Please try again.'}`);
+      }
     } finally {
       setIsLoading(false);
     }

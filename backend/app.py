@@ -120,6 +120,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Validate required environment variables at startup
+def validate_environment():
+    """Validate required environment variables and fail fast with clear errors"""
+    required_vars = []
+    missing_vars = []
+    
+    # Check contract address (accept both variants)
+    contract_address = os.getenv("CREDIT_PASSPORT_NFT_ADDRESS") or os.getenv("CREDIT_PASSPORT_ADDRESS")
+    if not contract_address:
+        missing_vars.append("CREDIT_PASSPORT_NFT_ADDRESS (or CREDIT_PASSPORT_ADDRESS)")
+    else:
+        # Validate address format
+        if not contract_address.startswith("0x") or len(contract_address) != 42:
+            raise ValueError(
+                f"Invalid CREDIT_PASSPORT_NFT_ADDRESS format: {contract_address}. "
+                "Must be a valid Ethereum address (0x followed by 40 hex characters)."
+            )
+    
+    # Check private key (try encrypted first, then plaintext)
+    from utils.secrets_manager import get_secrets_manager
+    secrets_manager = get_secrets_manager()
+    private_key = secrets_manager.get_secret("BACKEND_PRIVATE_KEY_ENCRYPTED", encrypted=True)
+    if not private_key:
+        private_key = os.getenv("BACKEND_PRIVATE_KEY")
+    if not private_key:
+        missing_vars.append("BACKEND_PRIVATE_KEY (or BACKEND_PRIVATE_KEY_ENCRYPTED)")
+    else:
+        # Validate private key format (basic check)
+        if not private_key.startswith("0x") or len(private_key) != 66:
+            raise ValueError(
+                "Invalid BACKEND_PRIVATE_KEY format. "
+                "Must be a valid private key (0x followed by 64 hex characters)."
+            )
+    
+    # Check RPC URL
+    rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL")
+    if not rpc_url:
+        missing_vars.append("QIE_RPC_URL (or QIE_TESTNET_RPC_URL)")
+    else:
+        # Validate RPC URL format
+        if not rpc_url.startswith("http://") and not rpc_url.startswith("https://"):
+            raise ValueError(
+                f"Invalid RPC URL format: {rpc_url}. "
+                "Must start with http:// or https://"
+            )
+    
+    if missing_vars:
+        error_msg = (
+            "Missing required environment variables:\n"
+            + "\n".join(f"  - {var}" for var in missing_vars)
+            + "\n\nPlease set these variables in your .env file or environment."
+        )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info("Environment validation passed")
+
+# Run validation before initializing services
+try:
+    validate_environment()
+except ValueError as e:
+    logger.error(f"Environment validation failed: {e}")
+    raise
+
 # Initialize database (if configured)
 if os.getenv("DATABASE_URL"):
     from database.connection import init_db
@@ -127,10 +191,15 @@ if os.getenv("DATABASE_URL"):
     # Initialize database on startup
     asyncio.create_task(init_db())
 
-# Initialize services
-scoring_service = ScoringService()
-blockchain_service = BlockchainService()
-gdpr_service = GDPRService()
+# Initialize services (these will also validate their own requirements)
+try:
+    scoring_service = ScoringService()
+    blockchain_service = BlockchainService()
+    gdpr_service = GDPRService()
+    logger.info("All services initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize services: {e}", exc_info=True)
+    raise
 
 # Request/Response models
 class ScoreRequest(BaseModel):
@@ -263,11 +332,14 @@ async def generate_score(
                     detail="Invalid wallet signature"
                 )
         elif not current_user:
-            # Require authentication if no signature provided
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required (API key, JWT, or wallet signature)"
-            )
+            # In development, allow requests without authentication
+            # In production, require authentication
+            environment = os.getenv("ENVIRONMENT", "development")
+            if environment.lower() not in ["development", "dev"]:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required (API key, JWT, or wallet signature)"
+                )
         
         # Compute score (use async task if enabled, otherwise sync)
         use_async = os.getenv("USE_ASYNC_SCORE_COMPUTATION", "false").lower() == "true"
@@ -494,11 +566,15 @@ async def chat(
         sanitized_message = sanitize_chat_message(chat_request.message)
         
         # Verify authentication or wallet signature
+        # In development, allow requests without authentication
+        # In production, require authentication
         if not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
-            )
+            environment = os.getenv("ENVIRONMENT", "development")
+            if environment.lower() not in ["development", "dev"]:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required"
+                )
         
         from core.agent import NeuroLendAgent
         agent = NeuroLendAgent()

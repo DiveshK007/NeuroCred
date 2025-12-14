@@ -1,7 +1,7 @@
 'use client';
 
 import { Layout } from '@/components/layout/Layout';
-import QIEStaking from '../components/QIEStaking';
+import QIEStaking from '@/app/components/QIEStaking';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';

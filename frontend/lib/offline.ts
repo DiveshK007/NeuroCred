@@ -100,7 +100,7 @@ export async function getCachedResponse(url: string): Promise<Response | null> {
 
   try {
     const cache = await caches.open('neurocred-api-v1');
-    return await cache.match(url);
+    return (await cache.match(url)) || null;
   } catch (error) {
     console.error('Error getting cached response:', error);
     return null;

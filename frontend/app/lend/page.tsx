@@ -8,6 +8,7 @@ import ScoreDisplay from '../components/ScoreDisplay';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const LENDING_VAULT_ADDRESS = process.env.NEXT_PUBLIC_LENDING_VAULT_ADDRESS;
@@ -21,62 +22,12 @@ const LENDING_VAULT_ABI = [
 ];
 
 export default function LendPage() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+  const { address, provider, isConnected, connect } = useWallet();
   const [score, setScore] = useState<number | null>(null);
   const [riskBand, setRiskBand] = useState<number | null>(null);
   const [explanation, setExplanation] = useState<string>('');
   const [activeLoans, setActiveLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [balance, setBalance] = useState<string>('0');
-
-  const handleConnect = async (addr?: string, prov?: ethers.BrowserProvider) => {
-    if (!addr || !prov) {
-      // Manual connect
-      if (typeof window === 'undefined' || !window.ethereum) {
-        alert('Please install MetaMask or QIE Wallet!');
-        return;
-      }
-      try {
-        const { ethers } = await import('ethers');
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        await provider.send('eth_requestAccounts', []);
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
-        setAddress(address);
-        setProvider(provider);
-        loadScore(address);
-        loadActiveLoans(address, provider);
-        const bal = await provider.getBalance(address);
-        setBalance(ethers.formatEther(bal));
-      } catch (error) {
-        console.error('Error connecting wallet:', error);
-        alert('Failed to connect wallet');
-      }
-    } else {
-      // Called with params
-      setAddress(addr);
-      setProvider(prov);
-      loadScore(addr);
-      loadActiveLoans(addr, prov);
-      try {
-        const bal = await prov.getBalance(addr);
-        setBalance(ethers.formatEther(bal));
-      } catch (e) {
-        console.error('Error fetching balance:', e);
-      }
-    }
-  };
-
-  const handleDisconnect = () => {
-    setAddress(null);
-    setProvider(null);
-    setScore(null);
-    setRiskBand(null);
-    setExplanation('');
-    setActiveLoans([]);
-    setBalance('0');
-  };
 
   const loadScore = async (addr: string) => {
     try {
@@ -92,7 +43,7 @@ export default function LendPage() {
     }
   };
 
-  const loadActiveLoans = async (addr: string, prov: ethers.BrowserProvider) => {
+  const loadActiveLoans = async (addr: string, prov: any) => {
     if (!LENDING_VAULT_ADDRESS || !prov) return;
     
     try {
@@ -151,24 +102,13 @@ export default function LendPage() {
     return () => window.removeEventListener('acceptOffer', handleAccept);
   }, [address, provider]);
 
+  // Load score and loans when wallet is connected
   useEffect(() => {
-    // Auto-connect wallet if available
-    const connectWallet = async () => {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        try {
-          const { ethers } = await import('ethers');
-          const prov = new ethers.BrowserProvider(window.ethereum);
-          await prov.send('eth_requestAccounts', []);
-          const signer = await prov.getSigner();
-          const addr = await signer.getAddress();
-          handleConnect(addr, prov);
-        } catch (error) {
-          console.error('Error auto-connecting wallet:', error);
-        }
-      }
-    };
-    connectWallet();
-  }, []);
+    if (address && provider) {
+      loadScore(address);
+      loadActiveLoans(address, provider);
+    }
+  }, [address, provider]);
 
   return (
     <Layout>
@@ -179,7 +119,7 @@ export default function LendPage() {
             <p className="text-muted-foreground">Chat with AI to get personalized loan terms based on your NeuroCred score</p>
           </div>
 
-          {!address ? (
+          {!isConnected ? (
             <div className="max-w-md mx-auto">
               <GlassCard className="text-center p-12">
                 <div className="text-6xl mb-6">💬</div>
@@ -187,13 +127,7 @@ export default function LendPage() {
                 <p className="text-muted-foreground mb-8">
                   Connect your wallet to start chatting with Q-Loan AI
                 </p>
-                <Button onClick={() => {
-                  if (typeof window !== 'undefined' && window.ethereum) {
-                    handleConnect();
-                  } else {
-                    alert('Please install MetaMask or QIE Wallet!');
-                  }
-                }} variant="glow" size="lg">
+                <Button onClick={connect} variant="glow" size="lg">
                   <Wallet className="w-5 h-5" />
                   Connect Wallet
                 </Button>

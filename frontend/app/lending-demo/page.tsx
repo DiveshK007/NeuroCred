@@ -1,66 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
 import { Layout } from '@/components/layout/Layout';
 import DeFiDemo from '../components/DeFiDemo';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function LendingDemoPage() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+  const { address, provider, isConnected, connect } = useWallet();
   const [score, setScore] = useState<number | null>(null);
   const [riskBand, setRiskBand] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [balance, setBalance] = useState<string>('0');
-
-  useEffect(() => {
-    // Auto-connect wallet if available
-    const connectWallet = async () => {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        try {
-          const { ethers } = await import('ethers');
-          const prov = new ethers.BrowserProvider(window.ethereum);
-          await prov.send('eth_requestAccounts', []);
-          const signer = await prov.getSigner();
-          const addr = await signer.getAddress();
-          setAddress(addr);
-          setProvider(prov);
-          const bal = await prov.getBalance(addr);
-          setBalance(ethers.formatEther(bal));
-        } catch (error) {
-          console.error('Error connecting wallet:', error);
-        }
-      }
-    };
-    connectWallet();
-  }, []);
-
-  const handleConnect = async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
-      alert('Please install MetaMask or QIE Wallet!');
-      return;
-    }
-
-    try {
-      const { ethers } = await import('ethers');
-      const prov = new ethers.BrowserProvider(window.ethereum);
-      await prov.send('eth_requestAccounts', []);
-      const signer = await prov.getSigner();
-      const addr = await signer.getAddress();
-      setAddress(addr);
-      setProvider(prov);
-      const bal = await prov.getBalance(addr);
-      setBalance(ethers.formatEther(bal));
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet');
-    }
-  };
 
   const generateScore = async () => {
     if (!address) return;
@@ -99,7 +53,7 @@ export default function LendingDemoPage() {
             <p className="text-muted-foreground">See how your credit score affects borrowing terms</p>
           </div>
 
-          {!address ? (
+          {!isConnected ? (
             <div className="max-w-md mx-auto">
               <GlassCard className="text-center p-12">
                 <div className="text-6xl mb-6">🔐</div>
@@ -107,7 +61,7 @@ export default function LendingDemoPage() {
                 <p className="text-muted-foreground mb-8">
                   Connect your wallet to view personalized lending terms
                 </p>
-                <Button onClick={handleConnect} variant="glow" size="lg">
+                <Button onClick={connect} variant="glow" size="lg">
                   <Wallet className="w-5 h-5" />
                   Connect Wallet
                 </Button>

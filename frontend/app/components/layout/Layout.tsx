@@ -1,46 +1,16 @@
 'use client';
 
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { motion } from "framer-motion";
-import { ethers } from "ethers";
+import { useWallet } from "@/contexts/WalletContext";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>();
-  const [balance, setBalance] = useState<string>();
-
-  const handleConnect = async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
-      alert('Please install MetaMask or QIE Wallet!');
-      return;
-    }
-
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send('eth_requestAccounts', []);
-      const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
-      const bal = await provider.getBalance(addr);
-      
-      setIsConnected(true);
-      setWalletAddress(addr);
-      setBalance(ethers.formatEther(bal));
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet');
-    }
-  };
-
-  const handleDisconnect = () => {
-    setIsConnected(false);
-    setWalletAddress(undefined);
-    setBalance(undefined);
-  };
+  const { isConnected, address, balance, connect, disconnect } = useWallet();
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -104,10 +74,10 @@ export function Layout({ children }: LayoutProps) {
 
       <Sidebar
         isConnected={isConnected}
-        walletAddress={walletAddress}
+        walletAddress={address || undefined}
         balance={balance}
-        onConnect={handleConnect}
-        onDisconnect={handleDisconnect}
+        onConnect={connect}
+        onDisconnect={disconnect}
       />
 
       {/* Main content */}
@@ -118,8 +88,3 @@ export function Layout({ children }: LayoutProps) {
   );
 }
 
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}

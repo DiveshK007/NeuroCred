@@ -3,38 +3,26 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { HeroSection } from "@/components/home/HeroSection";
+import { useWallet } from "@/contexts/WalletContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Home() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>();
+  const { address, isConnected, connect } = useWallet();
   const [score, setScore] = useState<number>();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConnect = async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
-      alert('Please install MetaMask or QIE Wallet!');
-      return;
-    }
-
-    try {
-      const { ethers } = await import('ethers');
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send('eth_requestAccounts', []);
-      const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
-      
-      setIsConnected(true);
-      setWalletAddress(addr);
-      
-      // Generate score
-      await generateScore(addr);
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet');
-    }
+    await connect();
   };
+
+  // Generate score when wallet is connected (but only once)
+  useEffect(() => {
+    if (address && isConnected && score === undefined) {
+      generateScore(address);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, isConnected]);
 
   const generateScore = async (address: string) => {
     setIsLoading(true);
@@ -71,8 +59,3 @@ export default function Home() {
   );
 }
 
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}

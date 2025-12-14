@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ethers } from "ethers";
+import { useWallet } from "@/contexts/WalletContext";
 import { 
   Radio, 
   TrendingUp, 
@@ -57,42 +57,23 @@ const quickActions = [
 ];
 
 export default function Dashboard() {
-  const [address, setAddress] = useState<string | null>(null);
+  const { address, balance: walletBalance, connect, isConnected } = useWallet();
   const [score, setScore] = useState<number | null>(null);
   const [baseScore, setBaseScore] = useState<number>(0);
   const [stakingBoost, setStakingBoost] = useState<number>(0);
   const [oraclePenalty, setOraclePenalty] = useState<number>(0);
   const [riskBand, setRiskBand] = useState<number>(0);
-  const [walletBalance, setWalletBalance] = useState<string>('0');
   const [oraclePrice, setOraclePrice] = useState<string>('$2.45');
   const [stakingTier, setStakingTier] = useState<string>('None');
   const [stakedAmount, setStakedAmount] = useState<string>('0');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Load dashboard data when wallet is connected
   useEffect(() => {
-    // Auto-connect wallet
-    const connectWallet = async () => {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          await provider.send('eth_requestAccounts', []);
-          const signer = await provider.getSigner();
-          const addr = await signer.getAddress();
-          setAddress(addr);
-          
-          // Fetch balance
-          const bal = await provider.getBalance(addr);
-          setWalletBalance(ethers.formatEther(bal));
-          
-          // Load dashboard data
-          loadDashboardData(addr);
-        } catch (error) {
-          console.error('Error connecting wallet:', error);
-        }
-      }
-    };
-    connectWallet();
-  }, []);
+    if (address) {
+      loadDashboardData(address);
+    }
+  }, [address]);
 
   const loadDashboardData = async (addr: string) => {
     setIsLoading(true);
@@ -140,6 +121,10 @@ export default function Dashboard() {
     }
   };
 
+  const handleConnect = async () => {
+    await connect();
+  };
+
   const handleRefresh = async () => {
     if (address) {
       await loadDashboardData(address);
@@ -170,7 +155,7 @@ export default function Dashboard() {
     {
       icon: Wallet,
       label: "Wallet Balance",
-      value: parseFloat(walletBalance).toFixed(2),
+      value: isConnected ? parseFloat(walletBalance || '0').toFixed(2) : '0.00',
       subtext: "QIE",
     },
   ];
@@ -257,10 +242,16 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <Button variant="glass" size="lg" className="mt-8" onClick={handleRefresh} disabled={isLoading || !address}>
-                    <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh Score
-                  </Button>
+                  {!isConnected ? (
+                    <Button variant="glow" size="lg" className="mt-8" onClick={handleConnect}>
+                      Connect Wallet to View Score
+                    </Button>
+                  ) : (
+                    <Button variant="glass" size="lg" className="mt-8" onClick={handleRefresh} disabled={isLoading}>
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                      Refresh Score
+                    </Button>
+                  )}
                 </div>
               </GlassCard>
             </motion.div>

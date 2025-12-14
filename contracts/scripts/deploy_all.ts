@@ -60,7 +60,7 @@ async function main() {
     const lenderAddress = await lender.getAddress();
     console.log("✅ DemoLender deployed to:", lenderAddress);
 
-    // 4. Deploy LendingVault (Q-Loan)
+    // 4. Deploy LendingVault (NeuroLend)
     console.log("\n📝 [4/4] Deploying LendingVault...");
     const backendAddress = process.env.BACKEND_ADDRESS || process.env.BACKEND_WALLET_ADDRESS;
     const aiSignerAddress = process.env.AI_SIGNER_ADDRESS || backendAddress || deployer.address;

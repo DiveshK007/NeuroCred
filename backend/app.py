@@ -202,7 +202,7 @@ async def get_ltv(address: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Q-Loan Chat API
+# NeuroLend Chat API
 class ChatRequest(BaseModel):
     address: str
     message: str
@@ -215,10 +215,10 @@ class ChatResponse(BaseModel):
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Chat with Q-Loan AI agent"""
+    """Chat with NeuroLend AI agent"""
     try:
-        from core.agent import QLoanAgent
-        agent = QLoanAgent()
+        from core.agent import NeuroLendAgent
+        agent = NeuroLendAgent()
         result = await agent.process_chat(request.address, request.message)
         return ChatResponse(**result)
     except Exception as e:

@@ -53,7 +53,7 @@ const statsData = [
 const quickActions = [
   { icon: Lock, label: "Stake NCRD", path: "/stake" },
   { icon: Coins, label: "DeFi Demo", path: "/lending-demo" },
-  { icon: MessageSquare, label: "Q-Loan Chat", path: "/lend" },
+  { icon: MessageSquare, label: "NeuroLend", path: "/lend" },
 ];
 
 export default function Dashboard() {

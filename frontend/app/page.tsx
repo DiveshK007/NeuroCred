@@ -8,7 +8,7 @@ import { useWallet } from "@/contexts/WalletContext";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Home() {
-  const { address, isConnected, connect } = useWallet();
+  const { address, isConnected, connect, isConnecting } = useWallet();
   const [score, setScore] = useState<number>();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -54,6 +54,8 @@ export default function Home() {
         isConnected={isConnected} 
         onConnect={handleConnect}
         score={score}
+        isConnecting={isConnecting}
+        isLoading={isLoading}
       />
     </Layout>
   );

@@ -19,7 +19,7 @@ export default function Sidebar({ address, balance, onConnect, onDisconnect }: S
   const navItems = [
     { href: '/', label: 'Home', icon: '🏠' },
     { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-    { href: '/lend', label: 'Q-Loan', icon: '💬' },
+    { href: '/lend', label: 'NeuroLend', icon: '💬' },
     { href: '/stake', label: 'Stake', icon: '🔒' },
     { href: '/lending-demo', label: 'DeFi Demo', icon: '💰' },
   ];

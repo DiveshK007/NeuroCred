@@ -115,7 +115,7 @@ export default function LendPage() {
       <div className="min-h-screen px-8 lg:px-16 py-12">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gradient mb-2">Q-Loan: AI-Negotiated Lending</h1>
+            <h1 className="text-4xl font-bold text-gradient mb-2">NeuroLend: AI-Negotiated Lending</h1>
             <p className="text-muted-foreground">Chat with AI to get personalized loan terms based on your NeuroCred score</p>
           </div>
 
@@ -125,7 +125,7 @@ export default function LendPage() {
                 <div className="text-6xl mb-6">💬</div>
                 <h2 className="text-2xl font-bold mb-4 gradient-text">Connect Your Wallet</h2>
                 <p className="text-muted-foreground mb-8">
-                  Connect your wallet to start chatting with Q-Loan AI
+                  Connect your wallet to start chatting with NeuroLend AI
                 </p>
                 <Button onClick={connect} variant="glow" size="lg">
                   <Wallet className="w-5 h-5" />

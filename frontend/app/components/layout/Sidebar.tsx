@@ -25,7 +25,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: Home, label: "Home", path: "/" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: MessageSquare, label: "Q-Loan", path: "/lend" },
+  { icon: MessageSquare, label: "NeuroLend", path: "/lend" },
   { icon: Lock, label: "Stake", path: "/stake" },
   { icon: Coins, label: "DeFi Demo", path: "/lending-demo" },
 ];

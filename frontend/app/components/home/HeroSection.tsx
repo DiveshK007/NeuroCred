@@ -11,6 +11,8 @@ interface HeroSectionProps {
   isConnected: boolean;
   onConnect: () => void;
   score?: number;
+  isConnecting?: boolean;
+  isLoading?: boolean;
 }
 
 const features = [
@@ -52,7 +54,7 @@ const steps = [
   },
 ];
 
-export function HeroSection({ isConnected, onConnect, score }: HeroSectionProps) {
+export function HeroSection({ isConnected, onConnect, score, isConnecting = false, isLoading = false }: HeroSectionProps) {
   if (isConnected && score !== undefined) {
     return <ConnectedHero score={score} />;
   }
@@ -105,9 +107,21 @@ export function HeroSection({ isConnected, onConnect, score }: HeroSectionProps)
               transition={{ delay: 0.6, duration: 0.6 }}
               className="flex flex-wrap gap-4"
             >
-              <Button onClick={onConnect} variant="glow" size="xl">
-                <Wallet className="w-5 h-5" />
-                Connect Wallet
+              <Button onClick={onConnect} variant="glow" size="xl" disabled={isConnecting || isLoading}>
+                {isConnecting || isLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {isConnecting ? 'Connecting...' : 'Generating Score...'}
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-5 h-5" />
+                    Connect Wallet
+                  </>
+                )}
               </Button>
               <Button variant="glass" size="xl" asChild>
                 <a href="#how-it-works">
@@ -247,7 +261,7 @@ export function HeroSection({ isConnected, onConnect, score }: HeroSectionProps)
 
 function ConnectedHero({ score }: { score: number }) {
   const quickActions = [
-    { icon: Brain, label: "Q-Loan AI", path: "/lend", color: "from-primary to-secondary" },
+    { icon: Brain, label: "NeuroLend", path: "/lend", color: "from-primary to-secondary" },
     { icon: Shield, label: "Stake NCRD", path: "/stake", color: "from-success to-primary" },
     { icon: Zap, label: "DeFi Demo", path: "/lending-demo", color: "from-warning to-destructive" },
   ];
@@ -317,7 +331,7 @@ function ConnectedHero({ score }: { score: number }) {
                     <div className="flex-1">
                       <h3 className="font-semibold">{action.label}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {action.label === "Q-Loan AI" && "Get personalized loan offers"}
+                        {action.label === "NeuroLend" && "Get personalized loan offers"}
                         {action.label === "Stake NCRD" && "Boost your credit score"}
                         {action.label === "DeFi Demo" && "See your borrowing power"}
                       </p>

@@ -19,7 +19,7 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hello! I\'m your Q-Loan AI assistant. I can help you get a personalized loan based on your NeuroCred score. How can I help you today?'
+      content: 'Hello! I\'m your NeuroLend AI assistant. I can help you get a personalized loan based on your NeuroCred score. How can I help you today?'
     }
   ]);
   const [input, setInput] = useState('');
@@ -107,7 +107,7 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
       <div className="px-6 py-4 border-b border-white/10 bg-glass-hover">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <h3 className="font-semibold text-white">Q-Loan AI Assistant</h3>
+          <h3 className="font-semibold text-white">NeuroLend AI Assistant</h3>
         </div>
       </div>
 

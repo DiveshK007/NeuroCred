@@ -32,7 +32,7 @@ class LoanOfferSigner:
     def get_domain_separator(self, contract_address: str) -> Dict:
         """Get EIP-712 domain separator"""
         return {
-            "name": "Q-Loan LendingVault",
+            "name": "NeuroLend LendingVault",
             "version": "1",
             "chainId": self.chain_id,
             "verifyingContract": to_checksum_address(contract_address)

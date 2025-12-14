@@ -1,5 +1,5 @@
 """
-Q-Loan AI Agent for loan negotiation
+NeuroLend AI Agent for loan negotiation
 Simple rule-based agent (can be upgraded to LangChain later)
 """
 import os
@@ -10,7 +10,7 @@ from services.blockchain import BlockchainService
 from core.nonce import nonce_manager
 from core.signing import LoanOfferSigner
 
-class QLoanAgent:
+class NeuroLendAgent:
     """AI agent for loan negotiation"""
     
     def __init__(self):
@@ -54,7 +54,7 @@ class QLoanAgent:
             # General conversation
             score_info = await self._get_score_info(user_address)
             return {
-                "response": f"Hello! I'm your Q-Loan AI assistant. Your current NeuroCred score is {score_info['score']} ({score_info['riskBand']}). How can I help you today?",
+                "response": f"Hello! I'm your NeuroLend AI assistant. Your current NeuroCred score is {score_info['score']} ({score_info['riskBand']}). How can I help you today?",
                 "offer": None,
                 "signature": None,
                 "requiresSignature": False

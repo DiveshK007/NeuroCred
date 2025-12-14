@@ -1,2 +1,2 @@
-# Core modules for Q-Loan integration
+# Core modules for NeuroLend integration
 

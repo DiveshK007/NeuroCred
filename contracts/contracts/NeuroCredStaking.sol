@@ -51,8 +51,9 @@ contract NeuroCredStaking is Ownable {
     }
 
     /// @notice Returns integration tier based on staked amount.
-    /// Example thresholds (tweak as you like).
-    /// 0 = none, 1 = Bronze, 2 = Silver, 3 = Gold.
+    /// @param staker Address to check tier for
+    /// @return Tier level: 0 = none, 1 = Bronze, 2 = Silver, 3 = Gold
+    /// @dev Thresholds: Bronze (500+), Silver (2,000+), Gold (10,000+)
     function integrationTier(address staker) external view returns (uint8) {
         uint256 amt = stakes[staker].amount;
 
@@ -60,6 +61,13 @@ contract NeuroCredStaking is Ownable {
         if (amt >= 2_000 ether) return 2;  // Silver
         if (amt >= 500 ether) return 1;    // Bronze
         return 0;
+    }
+
+    /// @notice Returns the staked amount for a given address
+    /// @param user Address to check staked amount for
+    /// @return The amount of NCRD tokens staked by the user
+    function stakedAmount(address user) external view returns (uint256) {
+        return stakes[user].amount;
     }
 }
 

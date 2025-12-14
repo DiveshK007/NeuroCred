@@ -1,16 +1,14 @@
-name: Contracts CI
+name: CI
 
 on:
   push:
-    paths:
-      - 'contracts/**'
+    branches: [main, feature/fullstack-enhancements]
   pull_request:
-    paths:
-      - 'contracts/**'
+    branches: [main]
 
 jobs:
-  compile:
-    name: Compile Contracts
+  contracts:
+    name: Compile & Test Contracts
     runs-on: ubuntu-latest
     
     steps:
@@ -35,5 +33,47 @@ jobs:
       - name: Run tests
         working-directory: ./contracts
         run: npm test
-        continue-on-error: true
+
+      - name: Generate coverage report
+        working-directory: ./contracts
+        run: |
+          COVERAGE=true npm test
+        env:
+          COVERAGE: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./contracts/coverage/coverage.json
+          flags: contracts
+          name: contracts-coverage
+          fail_ci_if_error: false
+
+  frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_CONTRACT_ADDRESS: 0x0000000000000000000000000000000000000000
+          NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS: 0x0000000000000000000000000000000000000000
+          NEXT_PUBLIC_DEMO_LENDER_ADDRESS: 0x0000000000000000000000000000000000000000
 

@@ -54,12 +54,13 @@ async function main() {
   if (hasRole) {
     console.log("✅ SCORE_UPDATER_ROLE: GRANTED");
     console.log(`   Backend address ${backendAddress} has the role.`);
+    console.log("\n   This satisfies QIE hackathon requirement for role-based access control.");
   } else {
     console.log("❌ SCORE_UPDATER_ROLE: NOT GRANTED");
     console.log(`   Backend address ${backendAddress} does NOT have the role.`);
     console.log("\n   To grant the role, run:");
-    console.log(`   npx hardhat run scripts/deploy.ts --network qieTestnet`);
-    console.log("   (or use setScoreUpdater function on the contract)");
+    console.log(`   npx hardhat run scripts/grant_updater_role.ts --network qieTestnet`);
+    console.log("   (or use grantRole function on the contract)");
   }
   console.log("=".repeat(60));
 

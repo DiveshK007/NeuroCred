@@ -1,0 +1,60 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+env:
+  ENVIRONMENT: development
+  K8S_NAMESPACE: neurocred-dev
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE_NAME: ${{ github.repository_owner }}/neurocred
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+      
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.1.0"
+      
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.K8S_CONFIG_DEV }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
+      
+      - name: Update image tags
+        run: |
+          cd k8s/overlays/dev
+          kustomize edit set image \
+            backend=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}/backend:develop-${{ github.sha }} \
+            frontend=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}/frontend:develop-${{ github.sha }} \
+            worker-score=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}/worker-score:develop-${{ github.sha }} \
+            worker-blockchain=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}/worker-blockchain:develop-${{ github.sha }}
+      
+      - name: Deploy to Kubernetes
+        run: |
+          export KUBECONFIG=./kubeconfig
+          kubectl apply -k k8s/overlays/dev
+          kubectl rollout status deployment/dev-backend -n ${{ env.K8S_NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/dev-frontend -n ${{ env.K8S_NAMESPACE }} --timeout=5m
+      
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=./kubeconfig
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+          kubectl get services -n ${{ env.K8S_NAMESPACE }}
+

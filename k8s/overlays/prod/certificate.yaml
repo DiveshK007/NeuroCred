@@ -1,0 +1,17 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: neurocred-tls
+  namespace: neurocred-prod
+spec:
+  secretName: neurocred-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - api.neurocred.io
+  - neurocred.io
+  - www.neurocred.io
+  # Certificate will be automatically renewed by cert-manager
+  # Default renewal is 30 days before expiration
+

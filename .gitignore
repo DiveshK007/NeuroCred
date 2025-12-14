@@ -11,6 +11,7 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+.env.security.keys
 
 # Build outputs
 dist/
@@ -41,11 +42,53 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
 
 # Hardhat
 .openzeppelin/
 
+# Logs
 logs/
+*.log
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+
+# Environment
 .env
+.env.local
+.env.*.local
+.env.security.keys
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup directories
+*.backup/
+backup/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~

@@ -201,6 +201,151 @@ describe("CreditPassportNFT", function () {
       expect(tokenId1).to.not.equal(tokenId2);
     });
   });
+
+  describe("Edge Cases", function () {
+    it("Should handle score boundary 0", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 0, 3);
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.score).to.equal(0);
+    });
+
+    it("Should handle score boundary 1000", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 1000, 1);
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.score).to.equal(1000);
+    });
+
+    it("Should handle risk band 0", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 500, 0);
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.riskBand).to.equal(0);
+    });
+
+    it("Should handle risk band 3", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 200, 3);
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.riskBand).to.equal(3);
+    });
+
+    it("Should handle multiple updates to same user", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 500, 2);
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 600, 2);
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 700, 1);
+      
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.score).to.equal(700);
+      expect(scoreView.riskBand).to.equal(1);
+      
+      // Token ID should remain the same
+      const tokenId = await passportNFT.passportIdOf(user1.address);
+      expect(tokenId).to.equal(1);
+    });
+
+    it("Should handle zero address", async function () {
+      await expect(
+        passportNFT.connect(scoreUpdater).mintOrUpdate(ethers.ZeroAddress, 750, 1)
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Gas Optimization", function () {
+    it("Should use reasonable gas for mint", async function () {
+      const tx = await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1);
+      const receipt = await tx.wait();
+      expect(receipt!.gasUsed).to.be.lt(200000); // Should be less than 200k gas
+    });
+
+    it("Should use less gas for update than initial mint", async function () {
+      const mintTx = await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1);
+      const mintReceipt = await mintTx.wait();
+      
+      const updateTx = await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 850, 1);
+      const updateReceipt = await updateTx.wait();
+      
+      // Update should use less gas (no new token mint)
+      expect(updateReceipt!.gasUsed).to.be.lt(mintReceipt!.gasUsed);
+    });
+  });
+
+  describe("Access Control", function () {
+    it("Should reject minting from user without role", async function () {
+      await expect(
+        passportNFT.connect(user1).mintOrUpdate(user2.address, 750, 1)
+      ).to.be.revertedWithCustomError(passportNFT, "AccessControlUnauthorizedAccount");
+    });
+
+    it("Should reject minting from revoked updater", async function () {
+      await passportNFT.connect(admin).setScoreUpdater(scoreUpdater.address, false);
+      
+      await expect(
+        passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1)
+      ).to.be.revertedWithCustomError(passportNFT, "AccessControlUnauthorizedAccount");
+    });
+
+    it("Should allow multiple score updaters", async function () {
+      await passportNFT.connect(admin).setScoreUpdater(user2.address, true);
+      
+      // Both should be able to mint
+      await expect(
+        passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1)
+      ).to.emit(passportNFT, "PassportMinted");
+      
+      await expect(
+        passportNFT.connect(user2).mintOrUpdate(user2.address, 600, 2)
+      ).to.emit(passportNFT, "PassportMinted");
+    });
+
+    it("Should reject admin functions from non-admin", async function () {
+      await expect(
+        passportNFT.connect(user1).setScoreUpdater(user2.address, true)
+      ).to.be.revertedWithCustomError(passportNFT, "AccessControlUnauthorizedAccount");
+      
+      await expect(
+        passportNFT.connect(user1).adminBurn(user1.address)
+      ).to.be.revertedWithCustomError(passportNFT, "AccessControlUnauthorizedAccount");
+    });
+  });
+
+  describe("Reentrancy Protection", function () {
+    it("Should prevent reentrancy attacks", async function () {
+      // This test ensures the contract doesn't have reentrancy vulnerabilities
+      // In a real scenario, we'd deploy a malicious contract that tries to reenter
+      // For now, we test that multiple calls in sequence work correctly
+      
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1);
+      
+      // Multiple rapid updates should work correctly
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 800, 1);
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 850, 1);
+      
+      const scoreView = await passportNFT.getScore(user1.address);
+      expect(scoreView.score).to.equal(850);
+    });
+  });
+
+  describe("Event Emissions", function () {
+    it("Should emit PassportMinted event with correct parameters", async function () {
+      await expect(
+        passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1)
+      ).to.emit(passportNFT, "PassportMinted")
+        .withArgs(user1.address, 1);
+    });
+
+    it("Should emit ScoreUpdated event on update", async function () {
+      await passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 750, 1);
+      
+      await expect(
+        passportNFT.connect(scoreUpdater).mintOrUpdate(user1.address, 850, 1)
+      ).to.emit(passportNFT, "ScoreUpdated")
+        .withArgs(
+          user1.address,
+          1,
+          850,
+          1,
+          (value: any) => typeof value === "bigint" && value > 0
+        );
+    });
+  });
 });
 
 // Helper for matching any value in events

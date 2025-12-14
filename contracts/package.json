@@ -11,7 +11,12 @@
     "deploy:setup": "hardhat run scripts/deployAndSetup.ts --network qieTestnet",
     "verify:deployment": "hardhat run scripts/verify-deployment.ts --network qieTestnet",
     "verify:role": "hardhat run scripts/verify-role.ts --network qieTestnet",
-    "check:roles": "hardhat run scripts/checkRoles.ts --network qieTestnet"
+    "check:roles": "hardhat run scripts/checkRoles.ts --network qieTestnet",
+    "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts --network qieTestnet",
+    "upgrade": "hardhat run scripts/upgrade-contract.ts --network qieTestnet",
+    "pause": "hardhat run scripts/pause-contract.ts --network qieTestnet",
+    "setup:roles": "hardhat run scripts/setup-roles.ts --network qieTestnet",
+    "verify:all": "hardhat run scripts/verify-all.ts --network qieTestnet"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +31,8 @@
     "@nomicfoundation/hardhat-verify": "^2.1.3",
     "@nomicfoundation/ignition-core": "^0.15.15",
     "@openzeppelin/contracts": "^5.4.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "@openzeppelin/hardhat-upgrades": "^3.0.0",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
     "@types/chai": "^4.3.20",

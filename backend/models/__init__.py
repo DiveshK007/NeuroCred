@@ -1,2 +1,1 @@
-# Models package
-
+"""Data models"""

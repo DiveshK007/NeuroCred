@@ -39,7 +39,7 @@ def test_validators():
         from utils.validators import validate_ethereum_address, validate_score, validate_risk_band
         
         # Test valid address
-        addr = validate_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb")
+        addr = validate_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0")
         print(f"✅ Address validation: {addr[:10]}...")
         
         # Test invalid address

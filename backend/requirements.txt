@@ -9,4 +9,9 @@ eth-account>=0.10.0
 eth-utils>=2.3.0
 langchain>=0.1.0
 langchain-openai>=0.0.5
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+cryptography>=42.0.0
+slowapi>=0.1.9
+redis>=5.0.0
 

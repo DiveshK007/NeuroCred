@@ -15,7 +15,15 @@ class LoanOfferSigner:
     """Handles EIP-712 signing of loan offers"""
     
     def __init__(self):
-        self.private_key = os.getenv("AI_SIGNER_PRIVATE_KEY") or os.getenv("BACKEND_PK")
+        # Use secrets manager for private key
+        from utils.secrets_manager import get_secrets_manager
+        secrets_manager = get_secrets_manager()
+        
+        # Try to get encrypted private key, fallback to plaintext
+        self.private_key = secrets_manager.get_secret("AI_SIGNER_PRIVATE_KEY_ENCRYPTED", encrypted=True)
+        if not self.private_key:
+            self.private_key = os.getenv("AI_SIGNER_PRIVATE_KEY") or os.getenv("BACKEND_PK")
+        
         if not self.private_key:
             raise ValueError("AI_SIGNER_PRIVATE_KEY or BACKEND_PK must be set")
         

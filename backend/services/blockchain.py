@@ -13,14 +13,22 @@ class BlockchainService:
         self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.contract_address = os.getenv("CREDIT_PASSPORT_NFT_ADDRESS")
-        self.private_key = os.getenv("BACKEND_PRIVATE_KEY")
+        
+        # Use secrets manager for private key
+        from utils.secrets_manager import get_secrets_manager
+        secrets_manager = get_secrets_manager()
+        
+        # Try to get encrypted private key, fallback to plaintext
+        private_key = secrets_manager.get_secret("BACKEND_PRIVATE_KEY_ENCRYPTED", encrypted=True)
+        if not private_key:
+            private_key = os.getenv("BACKEND_PRIVATE_KEY")
         
         if not self.contract_address:
             raise ValueError("CREDIT_PASSPORT_NFT_ADDRESS not set in environment")
-        if not self.private_key:
+        if not private_key:
             raise ValueError("BACKEND_PRIVATE_KEY not set in environment")
         
-        self.account = Account.from_key(self.private_key)
+        self.account = Account.from_key(private_key)
         self.contract_abi = self._get_contract_abi()
         self.contract = self.w3.eth.contract(
             address=Web3.to_checksum_address(self.contract_address),

@@ -110,13 +110,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Security headers middleware (must be first)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# CORS middleware for frontend
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# CORS middleware for frontend - allow all origins for hackathon
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url] if frontend_url != "*" else ["*"],  # Use env var in production
+    allow_origins=["*"],  # Allow all origins for hackathon
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

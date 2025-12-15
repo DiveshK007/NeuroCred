@@ -2,14 +2,15 @@
 
 **AI-powered on-chain credit passport (soulbound NFT) — reusable risk scores for DeFi apps on QIE.**
 
-**Status:** Demo complete — contracts deployed to QIE testnet, backend mints passports via `mintOrUpdate`, frontend displays transactions with explorer links.
+**Status:** ✅ **Production Ready** — Contracts deployed to QIE testnet, backend API live on Render, frontend deployed on Vercel. Full stack operational with AI scoring, on-chain passport minting, and loan negotiation.
 
 ---
 
 ## Live Demo
 
 - **Frontend**: https://neuro-cred-git-main-diveshk007s-projects.vercel.app
-- **Backend API**: *Deploy to Render/Railway for full functionality*
+- **Backend API**: https://neurocred-backend.onrender.com
+- **API Docs**: https://neurocred-backend.onrender.com/docs
 - **Demo Video**: https://youtu.be/HKDrJyicVn0
 
 ## Contracts
@@ -350,9 +351,11 @@ NeuroCred/
 
 ## API Endpoints
 
+**Base URL**: `https://neurocred-backend.onrender.com`
+
 ### Generate Score
 ```http
-POST /api/score
+POST https://neurocred-backend.onrender.com/api/score
 Content-Type: application/json
 
 {
@@ -371,14 +374,26 @@ Content-Type: application/json
 }
 ```
 
+**Example:**
+```bash
+curl -X POST https://neurocred-backend.onrender.com/api/score \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"}'
+```
+
 ### Get Score
 ```http
-GET /api/score/{address}
+GET https://neurocred-backend.onrender.com/api/score/{address}
+```
+
+**Example:**
+```bash
+curl https://neurocred-backend.onrender.com/api/score/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 ```
 
 ### AI Chat (Q-Loan)
 ```http
-POST /api/chat
+POST https://neurocred-backend.onrender.com/api/chat
 Content-Type: application/json
 
 {
@@ -389,14 +404,17 @@ Content-Type: application/json
 
 ### Health Check
 ```http
-GET /health
-GET /health/ready
+GET https://neurocred-backend.onrender.com/health
+GET https://neurocred-backend.onrender.com/health/ready
 ```
 
 ### Metrics
 ```http
-GET /metrics
+GET https://neurocred-backend.onrender.com/metrics
 ```
+
+### Interactive API Documentation
+Visit https://neurocred-backend.onrender.com/docs for Swagger UI with interactive API testing.
 
 ---
 
@@ -521,6 +539,8 @@ To create the NCRD token via QIEDex:
 - **GitHub**: https://github.com/DiveshK007/NeuroCred
 - **Demo Video**: https://youtu.be/HKDrJyicVn0
 - **Live Frontend**: https://neuro-cred-git-main-diveshk007s-projects.vercel.app
+- **Live Backend API**: https://neurocred-backend.onrender.com
+- **API Documentation**: https://neurocred-backend.onrender.com/docs
 - **Contract Address**: `0x34904952E5269290B783071f1eBba51c22ef6219`
 - **Explorer**: https://testnet.qie.digital/address/0x34904952E5269290B783071f1eBba51c22ef6219
 

@@ -146,11 +146,36 @@ def validate_environment():
     if not private_key:
         missing_vars.append("BACKEND_PRIVATE_KEY (or BACKEND_PRIVATE_KEY_ENCRYPTED)")
     else:
+        # Sanitize private key: strip whitespace
+        private_key_sanitized = private_key.strip()
+        private_key_sanitized = "".join(private_key_sanitized.split())
+        
+        # Handle missing 0x prefix
+        if not private_key_sanitized.startswith("0x"):
+            if len(private_key_sanitized) == 64:
+                private_key_sanitized = "0x" + private_key_sanitized
+            else:
+                raise ValueError(
+                    f"Invalid BACKEND_PRIVATE_KEY format. "
+                    f"Expected 0x followed by 64 hex characters, got length {len(private_key_sanitized)}. "
+                    f"Value: {private_key[:20]}... (truncated)"
+                )
+        
         # Validate private key format (basic check)
-        if not private_key.startswith("0x") or len(private_key) != 66:
+        if len(private_key_sanitized) != 66:
             raise ValueError(
-                "Invalid BACKEND_PRIVATE_KEY format. "
-                "Must be a valid private key (0x followed by 64 hex characters)."
+                f"Invalid BACKEND_PRIVATE_KEY format. "
+                f"Expected 66 characters (0x + 64 hex), got {len(private_key_sanitized)}. "
+                f"Value: {private_key[:20]}... (truncated)"
+            )
+        
+        # Validate hex characters
+        try:
+            int(private_key_sanitized[2:], 16)
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid BACKEND_PRIVATE_KEY format. "
+                f"Contains non-hexadecimal characters. Error: {str(e)}"
             )
     
     # Check RPC URL

@@ -525,15 +525,6 @@ To create the NCRD token via QIEDex:
 
 ---
 
-## Documentation
-
-- [Demo Script](./docs/demo-script.md) - Video demo guide
-- [QIEDex Integration](./docs/qiedex-integration.md) - Token creation guide
-- [Monitoring Guide](./docs/MONITORING.md) - Complete observability setup
-- [Submission Checklist](./CHECKLIST.md) - Complete hackathon submission checklist
-
----
-
 ## Links
 
 - **GitHub**: https://github.com/DiveshK007/NeuroCred

@@ -593,6 +593,10 @@ async def chat(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Chat error: {str(e)}")
+        print(f"Traceback: {error_trace}")
         from utils.audit_logger import log_audit_event
         log_audit_event(
             request=request,
@@ -601,6 +605,10 @@ async def chat(
             user_address=chat_request.address,
             error_message=str(e)
         )
+        # In development, return more detailed error
+        environment = os.getenv("ENVIRONMENT", "development")
+        if environment.lower() in ["development", "dev"]:
+            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/update-on-chain", response_model=UpdateOnChainResponse)

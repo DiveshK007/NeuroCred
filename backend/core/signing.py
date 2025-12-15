@@ -22,10 +22,12 @@ class LoanOfferSigner:
         # Try to get encrypted private key, fallback to plaintext
         self.private_key = secrets_manager.get_secret("AI_SIGNER_PRIVATE_KEY_ENCRYPTED", encrypted=True)
         if not self.private_key:
-            self.private_key = os.getenv("AI_SIGNER_PRIVATE_KEY") or os.getenv("BACKEND_PK")
+            self.private_key = secrets_manager.get_secret("BACKEND_PRIVATE_KEY_ENCRYPTED", encrypted=True)
+        if not self.private_key:
+            self.private_key = os.getenv("AI_SIGNER_PRIVATE_KEY") or os.getenv("BACKEND_PK") or os.getenv("BACKEND_PRIVATE_KEY")
         
         if not self.private_key:
-            raise ValueError("AI_SIGNER_PRIVATE_KEY or BACKEND_PK must be set")
+            raise ValueError("AI_SIGNER_PRIVATE_KEY, BACKEND_PK, or BACKEND_PRIVATE_KEY must be set")
         
         self.account = Account.from_key(self.private_key)
         self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")

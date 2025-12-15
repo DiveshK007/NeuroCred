@@ -39,17 +39,20 @@ COPY --chown=appuser:appuser . .
 ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+# Default port (Render will override with $PORT)
+ENV PORT=4000
 
 # Switch to non-root user
 USER appuser
 
-# Expose port
+# Expose port (Render will map $PORT to this)
 EXPOSE 4000
 
-# Health check
+# Health check - use $PORT environment variable
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:4000/health || exit 1
+    CMD sh -c "curl -f http://localhost:${PORT:-4000}/health || exit 1"
 
-# Run the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000", "--workers", "4"]
+# Run the application - use shell form to expand $PORT
+# Use $PORT if set (Render provides this), otherwise default to 4000
+CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-4000} --workers 4
 

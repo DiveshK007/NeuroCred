@@ -54,5 +54,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Run the application - use shell form to expand $PORT
 # Use $PORT if set (Render provides this), otherwise default to 4000
-CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-4000} --workers 4
+# Use --workers 1 for Render (single process, Render handles scaling)
+CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-4000} --workers 1
 

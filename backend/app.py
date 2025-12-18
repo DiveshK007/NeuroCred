@@ -2832,6 +2832,186 @@ async def get_analytics_insights(address: str, request: Request):
         logger.error(f"Error getting analytics insights: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# ========== Public API Endpoints (v1) ==========
+
+from middleware.api_auth import require_api_key, get_api_key
+
+@app.get("/api/v1/score/{address}")
+@limiter.limit("100/minute")
+async def get_public_score(
+    address: str,
+    request: Request,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Get credit score via public API"""
+    try:
+        from services.scoring import ScoringService
+        
+        scoring_service = ScoringService()
+        result = await scoring_service.compute_score(address)
+        
+        return {
+            "address": address,
+            "score": result.get("score", 0),
+            "risk_band": result.get("riskBand", 0),
+            "last_updated": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error getting public score: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/v1/score/{address}/history")
+@limiter.limit("100/minute")
+async def get_public_score_history(
+    address: str,
+    request: Request,
+    limit: int = 30,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Get score history via public API"""
+    try:
+        from database.connection import get_session
+        from database.models import ScoreHistory
+        from sqlalchemy import select, desc
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(ScoreHistory)
+                .where(ScoreHistory.wallet_address == address)
+                .order_by(desc(ScoreHistory.computed_at))
+                .limit(limit)
+            )
+            history = result.scalars().all()
+            
+            return {
+                "address": address,
+                "history": [
+                    {
+                        "score": h.score,
+                        "risk_band": h.risk_band,
+                        "computed_at": h.computed_at.isoformat() if h.computed_at else None,
+                    }
+                    for h in history
+                ],
+            }
+    except Exception as e:
+        logger.error(f"Error getting public score history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/v1/loans/{address}")
+@limiter.limit("100/minute")
+async def get_public_loans(
+    address: str,
+    request: Request,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Get user loans via public API"""
+    try:
+        from services.loan_service import LoanService
+        
+        loan_service = LoanService()
+        loans = await loan_service.get_loans_by_user(address)
+        
+        return {
+            "address": address,
+            "loans": loans,
+        }
+    except Exception as e:
+        logger.error(f"Error getting public loans: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/v1/portfolio/{address}")
+@limiter.limit("100/minute")
+async def get_public_portfolio(
+    address: str,
+    request: Request,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Get portfolio data via public API"""
+    try:
+        from services.portfolio_service import PortfolioService
+        
+        portfolio_service = PortfolioService()
+        portfolio_value = await portfolio_service.get_total_portfolio_value(address)
+        token_holdings = await portfolio_service.get_token_holdings(address)
+        
+        return {
+            "address": address,
+            "total_value": portfolio_value,
+            "holdings": token_holdings,
+        }
+    except Exception as e:
+        logger.error(f"Error getting public portfolio: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/v1/webhooks")
+@limiter.limit("10/minute")
+async def register_webhook(
+    request: Request,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Register webhook"""
+    try:
+        data = await request.json()
+        url = data.get("url")
+        events = data.get("events", [])
+        
+        if not url:
+            raise HTTPException(status_code=400, detail="URL is required")
+        
+        if not events:
+            raise HTTPException(status_code=400, detail="At least one event is required")
+        
+        from services.webhook_service import WebhookService
+        
+        webhook_service = WebhookService()
+        webhook = await webhook_service.register_webhook(api_key.id, url, events)
+        
+        if not webhook:
+            raise HTTPException(status_code=500, detail="Failed to register webhook")
+        
+        return webhook
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registering webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.delete("/api/v1/webhooks/{webhook_id}")
+@limiter.limit("10/minute")
+async def delete_webhook(
+    webhook_id: int,
+    request: Request,
+    api_key: APIKey = Depends(require_api_key)
+):
+    """Delete webhook"""
+    try:
+        from database.connection import get_session
+        from database.models import Webhook
+        from sqlalchemy import select
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(Webhook).where(
+                    Webhook.id == webhook_id,
+                    Webhook.api_key_id == api_key.id
+                )
+            )
+            webhook = result.scalar_one_or_none()
+            
+            if not webhook:
+                raise HTTPException(status_code=404, detail="Webhook not found")
+            
+            await session.delete(webhook)
+            await session.commit()
+            
+            return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Add rate limit exception handler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler

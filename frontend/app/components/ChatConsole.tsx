@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from '@/lib/api';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -42,7 +41,7 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await fetch(`${getApiUrl()}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +77,7 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
           ...newMessages,
           {
             role: 'assistant',
-            content: '❌ Network error: Unable to connect to the server. Please check if the backend is running on ' + API_URL,
+            content: '❌ Network error: Unable to connect to the server. Please check if the backend is running on ' + getApiUrl(),
           }
         ]);
       } else {

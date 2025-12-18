@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from '@/lib/api';
 const LENDING_VAULT_ADDRESS = process.env.NEXT_PUBLIC_LENDING_VAULT_ADDRESS;
 
 const LENDING_VAULT_ABI = [
@@ -31,7 +30,7 @@ export default function LendPage() {
 
   const loadScore = async (addr: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/score/${addr}`);
+      const response = await fetch(`${getApiUrl()}/api/score/${addr}`);
       if (response.ok) {
         const data = await response.json();
         setScore(data.score);

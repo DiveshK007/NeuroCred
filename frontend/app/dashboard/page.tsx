@@ -22,7 +22,7 @@ import { handleApiError, formatError } from "@/lib/errors";
 import { showErrorToast } from "@/components/ui/ErrorToast";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from '@/lib/api';
 
 const quickActions = [
   { icon: Lock, label: "Stake NCRD", path: "/stake" },
@@ -48,7 +48,7 @@ export default function Dashboard() {
     setIsInitialLoad(true);
     try {
       // Fetch score
-      const scoreRes = await fetch(`${API_URL}/api/score/${addr}`);
+      const scoreRes = await fetch(`${getApiUrl()}/api/score/${addr}`);
       if (!scoreRes.ok) {
         await handleApiError(scoreRes);
         return;
@@ -63,7 +63,7 @@ export default function Dashboard() {
 
       // Fetch oracle price
       try {
-        const oracleRes = await fetch(`${API_URL}/api/oracle/price`);
+        const oracleRes = await fetch(`${getApiUrl()}/api/oracle/price`);
         if (oracleRes.ok) {
           const oracleData = await oracleRes.json();
           if (oracleData.price) {
@@ -76,7 +76,7 @@ export default function Dashboard() {
 
       // Fetch staking info
       try {
-        const stakingRes = await fetch(`${API_URL}/api/staking/${addr}`);
+        const stakingRes = await fetch(`${getApiUrl()}/api/staking/${addr}`);
         if (stakingRes.ok) {
           const stakingData = await stakingRes.json();
           setStakingTier(stakingData.tierName || 'None');

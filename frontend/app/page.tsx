@@ -9,7 +9,7 @@ import { showErrorToast } from "@/components/ui/ErrorToast";
 import { isOnboardingCompleted } from "@/lib/onboarding";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from '@/lib/api';
 
 export default function Home() {
   const { address, isConnected, connect, isConnecting } = useWallet();
@@ -41,7 +41,7 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/api/score`, {
+      const response = await fetch(`${getApiUrl()}/api/score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

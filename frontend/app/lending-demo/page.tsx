@@ -8,7 +8,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiUrl } from '@/lib/api';
 
 export default function LendingDemoPage() {
   const { address, provider, isConnected, connect } = useWallet();
@@ -23,7 +23,7 @@ export default function LendingDemoPage() {
     try {
       // First, verify backend is reachable by checking health endpoint
       try {
-        const healthCheck = await fetch(`${API_URL}/health`, {
+        const healthCheck = await fetch(`${getApiUrl()}/health`, {
           method: 'GET',
           signal: AbortSignal.timeout(5000), // 5 second timeout
         });
@@ -33,7 +33,7 @@ export default function LendingDemoPage() {
       } catch (healthError: any) {
         if (healthError.name === 'AbortError' || healthError.name === 'TypeError') {
           throw new Error(
-            `Cannot connect to backend at ${API_URL}. ` +
+            `Cannot connect to backend at ${getApiUrl()}. ` +
             `Please ensure the backend is running on port 8000. ` +
             `Start it with: cd backend && python -m uvicorn app:app --reload --port 8000`
           );
@@ -41,7 +41,7 @@ export default function LendingDemoPage() {
         throw healthError;
       }
 
-      const response = await fetch(`${API_URL}/api/score`, {
+      const response = await fetch(`${getApiUrl()}/api/score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,10 +72,10 @@ export default function LendingDemoPage() {
         alert('Request timed out. The backend may be slow or unresponsive. Please try again.');
       } else if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
         alert(
-          `Network error: Cannot connect to backend at ${API_URL}\n\n` +
+          `Network error: Cannot connect to backend at ${getApiUrl()}\n\n` +
           `Troubleshooting:\n` +
           `1. Ensure backend is running: cd backend && python -m uvicorn app:app --reload --port 8000\n` +
-          `2. Check that API_URL is correct: ${API_URL}\n` +
+          `2. Check that API_URL is correct: ${getApiUrl()}\n` +
           `3. Verify backend/.env has all required variables`
         );
       } else {

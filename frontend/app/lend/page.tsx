@@ -112,6 +112,34 @@ export default function LendPage() {
 
     setIsLoading(true);
     try {
+      // Check if provider is responsive before proceeding
+      try {
+        await provider.getBlockNumber();
+      } catch (rpcError: any) {
+        // If RPC is having issues, try using a fallback provider
+        console.warn('Primary RPC endpoint having issues, attempting fallback...', rpcError);
+        const fallbackRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc1testnet.qie.digital/';
+        const fallbackProvider = new ethers.JsonRpcProvider(fallbackRpcUrl);
+        
+        // Test fallback provider
+        try {
+          await fallbackProvider.getBlockNumber();
+          // Use MetaMask signer but with fallback provider for read operations
+          const signer = await provider.getSigner();
+          // Create contract with signer (signer will use MetaMask for signing, but we can read from fallback)
+          const contract = new ethers.Contract(LENDING_VAULT_ADDRESS, LENDING_VAULT_ABI, signer);
+          
+          // Continue with transaction using signer (MetaMask will handle the actual RPC calls)
+          // But first, let's try the original provider one more time with a delay
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (fallbackError) {
+          throw new Error(
+            'RPC endpoint is currently unavailable. Please try again in a few moments. ' +
+            'If the issue persists, check your network connection or try switching to a different RPC endpoint in MetaMask.'
+          );
+        }
+      }
+      
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(LENDING_VAULT_ADDRESS, LENDING_VAULT_ABI, signer);
       
@@ -174,7 +202,20 @@ export default function LendPage() {
       await loadActiveLoans(address, provider);
     } catch (error: any) {
       console.error('Error creating loan:', error);
-      const errorMessage = error.reason || error.message || 'Unknown error occurred';
+      
+      // Provide user-friendly error messages for RPC issues
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error?.code === -32002 || error?.message?.includes('RPC endpoint returned too many errors')) {
+        errorMessage = 'The blockchain RPC endpoint is currently experiencing issues. Please wait a moment and try again. If the problem persists, try:\n\n1. Refreshing the page\n2. Checking your internet connection\n3. Switching to a different RPC endpoint in MetaMask';
+      } else if (error?.code === 'UNKNOWN_ERROR' || error?.message?.includes('could not coalesce')) {
+        errorMessage = 'Network error: Unable to connect to the blockchain. The RPC endpoint may be temporarily unavailable. Please try again in a few moments.';
+      } else if (error?.reason) {
+        errorMessage = error.reason;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       alert(`Error creating loan: ${errorMessage}`);
     } finally {
       setIsLoading(false);

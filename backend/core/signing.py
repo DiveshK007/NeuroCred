@@ -17,6 +17,9 @@ class LoanOfferSigner:
     def __init__(self):
         # Use secrets manager for private key
         from utils.secrets_manager import get_secrets_manager
+        from utils.logger import get_logger
+        logger = get_logger(__name__)
+        
         secrets_manager = get_secrets_manager()
         
         # Try to get encrypted private key, fallback to plaintext
@@ -26,37 +29,46 @@ class LoanOfferSigner:
         if not self.private_key:
             self.private_key = os.getenv("AI_SIGNER_PRIVATE_KEY") or os.getenv("BACKEND_PK") or os.getenv("BACKEND_PRIVATE_KEY")
         
+        # Initialize account and signing capability
+        self.account = None
+        self.can_sign = False
+        
         if not self.private_key:
-            raise ValueError("AI_SIGNER_PRIVATE_KEY, BACKEND_PK, or BACKEND_PRIVATE_KEY must be set")
+            logger.warning("No private key found. Loan offers will use placeholder signatures (demo mode).")
+            self.can_sign = False
+        else:
+            # Sanitize private key: strip whitespace and ensure proper format
+            private_key_clean = self.private_key.strip()
+            # Remove any newlines or extra spaces
+            private_key_clean = "".join(private_key_clean.split())
+            
+            # Validate format
+            if not private_key_clean.startswith("0x"):
+                # If missing 0x prefix, add it
+                if len(private_key_clean) == 64:
+                    private_key_clean = "0x" + private_key_clean
+                else:
+                    logger.warning(f"Invalid private key format: got length {len(private_key_clean)}. Loan offers will use placeholder signatures (demo mode).")
+                    self.can_sign = False
+                    private_key_clean = None
+            
+            if private_key_clean and len(private_key_clean) != 66:
+                logger.warning(f"Invalid private key length: expected 66 characters, got {len(private_key_clean)}. Loan offers will use placeholder signatures (demo mode).")
+                self.can_sign = False
+                private_key_clean = None
+            
+            # Validate hex characters and create account
+            if private_key_clean:
+                try:
+                    int(private_key_clean[2:], 16)
+                    self.account = Account.from_key(private_key_clean)
+                    self.can_sign = True
+                    logger.info("Private key validated successfully. Loan offers will be signed.")
+                except (ValueError, Exception) as e:
+                    logger.warning(f"Invalid private key: {str(e)}. Loan offers will use placeholder signatures (demo mode).")
+                    self.can_sign = False
+                    self.account = None
         
-        # Sanitize private key: strip whitespace and ensure proper format
-        self.private_key = self.private_key.strip()
-        # Remove any newlines or extra spaces
-        self.private_key = "".join(self.private_key.split())
-        
-        # Validate format
-        if not self.private_key.startswith("0x"):
-            # If missing 0x prefix, add it
-            if len(self.private_key) == 64:
-                self.private_key = "0x" + self.private_key
-            else:
-                raise ValueError(f"Invalid private key format: must be 0x followed by 64 hex characters, got length {len(self.private_key)}")
-        
-        if len(self.private_key) != 66:
-            raise ValueError(f"Invalid private key length: expected 66 characters (0x + 64 hex), got {len(self.private_key)}")
-        
-        # Validate hex characters
-        try:
-            int(self.private_key[2:], 16)
-        except ValueError as e:
-            raise ValueError(f"Invalid private key: contains non-hexadecimal characters. Error: {str(e)}")
-        
-        try:
-            self.account = Account.from_key(self.private_key)
-        except ValueError as e:
-            if "Non-hexadecimal digit" in str(e) or "non-hexadecimal" in str(e).lower():
-                raise ValueError(f"Invalid private key format: contains non-hexadecimal characters. Please check BACKEND_PRIVATE_KEY in environment variables. Original error: {str(e)}")
-            raise
         self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         
@@ -64,7 +76,7 @@ class LoanOfferSigner:
         try:
             self.chain_id = self.w3.eth.chain_id
         except:
-            self.chain_id = 1337  # Default for QIE testnet
+            self.chain_id = 1983  # QIE Testnet chain ID
     
     def get_domain_separator(self, contract_address: str) -> Dict:
         """Get EIP-712 domain separator"""
@@ -91,8 +103,15 @@ class LoanOfferSigner:
             contract_address: LendingVault contract address
             
         Returns:
-            Hex-encoded signature
+            Hex-encoded signature (or placeholder if signing is not available)
         """
+        # If we can't sign, return a placeholder signature
+        if not self.can_sign or not self.account:
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.warning("Cannot sign loan offer - using placeholder signature (demo mode)")
+            # Return a placeholder signature (130 hex chars = 65 bytes)
+            return "0x" + "0" * 130
         # Validate addresses
         borrower = offer.get('borrower', '')
         if not borrower or not isinstance(borrower, str):

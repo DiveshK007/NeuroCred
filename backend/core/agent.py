@@ -177,7 +177,14 @@ class NeuroLendAgent:
         if not self.lending_vault_address:
             signature = "0x" + "0" * 130  # Placeholder
         else:
-            signature = self.signer.sign_loan_offer(offer, self.lending_vault_address)
+            try:
+                signature = self.signer.sign_loan_offer(offer, self.lending_vault_address)
+            except Exception as e:
+                # If signing fails, use placeholder (for demo purposes)
+                from utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.warning(f"Failed to sign loan offer: {e}. Using placeholder signature.")
+                signature = "0x" + "0" * 130
         
         # Generate response message
         response = (

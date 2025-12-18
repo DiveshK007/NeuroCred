@@ -96,6 +96,21 @@ class ScoringService:
                 "features": features.__dict__ if features else None
             }
             
+            # Track score history with explanation
+            try:
+                await self._save_score_history(
+                    address,
+                    final_score,
+                    final_risk_band,
+                    base_score,
+                    staking_boost,
+                    oracle_penalty,
+                    explanation,
+                    staking_tier
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save score history: {e}", exc_info=True)
+            
             # Cache result
             from utils.cache import cache_score
             cache_score(address, result)
@@ -286,4 +301,68 @@ class ScoringService:
         except Exception as e:
             print(f"Error calculating oracle penalty: {e}")
             return 0
+    
+    async def _save_score_history(
+        self,
+        address: str,
+        final_score: int,
+        final_risk_band: int,
+        base_score: int,
+        staking_boost: int,
+        oracle_penalty: int,
+        explanation: str,
+        staking_tier: int
+    ):
+        """Save score history with explanation"""
+        try:
+            from database.connection import get_session
+            from database.repositories import ScoreHistoryRepository
+            from services.score_explanation import ScoreExplanationService
+            
+            async with get_session() as session:
+                # Get previous score
+                previous_score_entry = await ScoreHistoryRepository.get_latest_score(session, address)
+                previous_score = previous_score_entry.score if previous_score_entry else None
+                
+                # Determine change reason
+                change_reason = ScoreExplanationService.determine_change_reason(
+                    old_score=previous_score,
+                    new_score=final_score,
+                    base_score=base_score,
+                    staking_boost=staking_boost,
+                    oracle_penalty=oracle_penalty,
+                    metadata={
+                        "staking_tier": staking_tier,
+                        "boost": staking_boost,
+                        "penalty": oracle_penalty,
+                    }
+                )
+                
+                # Generate explanation if not already generated or if it's the first score
+                if not explanation or previous_score is None:
+                    explanation = ScoreExplanationService.generate_explanation(
+                        old_score=previous_score,
+                        new_score=final_score,
+                        change_reason=change_reason,
+                        metadata={
+                            "boost": staking_boost,
+                            "penalty": oracle_penalty,
+                            "tier": staking_tier,
+                        }
+                    )
+                
+                # Save to history
+                await ScoreHistoryRepository.add_history(
+                    session=session,
+                    wallet_address=address,
+                    score=final_score,
+                    risk_band=final_risk_band,
+                    previous_score=previous_score,
+                    explanation=explanation,
+                    change_reason=change_reason
+                )
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to save score history: {e}", exc_info=True)
+            # Don't raise - history tracking is non-critical
 

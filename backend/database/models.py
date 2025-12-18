@@ -68,6 +68,9 @@ class ScoreHistory(Base):
     wallet_address = Column(String(42), ForeignKey("scores.wallet_address"), nullable=False)
     score = Column(Integer, nullable=False)
     risk_band = Column(Integer, nullable=False)
+    previous_score = Column(Integer, nullable=True)  # Previous score before this change
+    explanation = Column(Text, nullable=True)  # Human-readable explanation of score change
+    change_reason = Column(String(50), nullable=True)  # Reason for change: "loan_repayment", "staking_boost", "oracle_penalty", etc.
     computed_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
@@ -76,6 +79,7 @@ class ScoreHistory(Base):
     __table_args__ = (
         Index('idx_score_history_wallet', 'wallet_address'),
         Index('idx_score_history_computed', 'computed_at'),
+        Index('idx_score_history_wallet_computed', 'wallet_address', 'computed_at'),  # Composite index for efficient queries
     )
 
 
@@ -177,6 +181,8 @@ class Transaction(Base):
     wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
     tx_hash = Column(String(66), nullable=False, unique=True, index=True)
     tx_type = Column(String(50), nullable=False, index=True)  # native_send, native_receive, erc20_transfer, contract_call, etc.
+    chain_id = Column(Integer, nullable=False, default=1983, index=True)  # QIE testnet default (1983)
+    chain_name = Column(String(50), nullable=True)  # Human-readable chain name (e.g., "QIE Testnet")
     block_number = Column(Integer, nullable=True, index=True)
     block_timestamp = Column(DateTime(timezone=True), nullable=True, index=True)
     from_address = Column(String(42), nullable=True, index=True)
@@ -203,6 +209,7 @@ class Transaction(Base):
         Index('idx_transactions_hash', 'tx_hash', unique=True),
         Index('idx_transactions_type', 'tx_type'),
         Index('idx_transactions_timestamp', 'block_timestamp'),
+        Index('idx_transactions_wallet_chain', 'wallet_address', 'chain_id'),  # Multi-chain queries
     )
 
 
@@ -212,6 +219,7 @@ class TokenTransfer(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     tx_hash = Column(String(66), ForeignKey("transactions.tx_hash"), nullable=False, index=True)
+    chain_id = Column(Integer, nullable=False, default=1983, index=True)  # QIE testnet default
     token_address = Column(String(42), nullable=False, index=True)
     token_type = Column(String(20), nullable=False)  # ERC20, ERC721
     from_address = Column(String(42), nullable=True, index=True)
@@ -230,6 +238,7 @@ class TokenTransfer(Base):
         Index('idx_token_transfers_from', 'from_address'),
         Index('idx_token_transfers_to', 'to_address'),
         Index('idx_token_transfers_block', 'block_number'),
+        Index('idx_token_transfers_chain', 'chain_id'),
     )
 
 
@@ -341,4 +350,476 @@ class ABMetric(Base):
     __table_args__ = (
         Index('idx_metric_experiment_variant', 'experiment_id', 'variant'),
         Index('idx_metric_recorded', 'recorded_at'),
+    )
+
+
+class LoanOffer(Base):
+    """Loan offer model for marketplace offers"""
+    __tablename__ = "loan_offers"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lender_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    borrower_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=True, index=True)
+    amount_min = Column(Numeric(20, 8), nullable=False)
+    amount_max = Column(Numeric(20, 8), nullable=False)
+    interest_rate = Column(Numeric(5, 2), nullable=False)  # APR percentage
+    term_days_min = Column(Integer, nullable=False)
+    term_days_max = Column(Integer, nullable=False)
+    collateral_required = Column(Boolean, default=False, nullable=False)
+    accepted_collateral_tokens = Column(JSON, nullable=True)  # Array of token addresses
+    ltv_ratio = Column(Numeric(5, 2), nullable=True)  # Loan-to-value ratio
+    status = Column(String(20), nullable=False, default='active', index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    metadata = Column(JSON, nullable=True)  # Additional terms
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    lender = relationship("User", foreign_keys=[lender_address])
+    borrower = relationship("User", foreign_keys=[borrower_address])
+    
+    __table_args__ = (
+        CheckConstraint("amount_min > 0 AND amount_max >= amount_min", name="chk_offer_amount_range"),
+        CheckConstraint("interest_rate >= 0 AND interest_rate <= 100", name="chk_offer_interest_rate"),
+        CheckConstraint("term_days_min > 0 AND term_days_max >= term_days_min", name="chk_offer_term_range"),
+        CheckConstraint("status IN ('active', 'filled', 'cancelled', 'expired')", name="chk_offer_status"),
+        Index('idx_loan_offers_lender', 'lender_address'),
+        Index('idx_loan_offers_status', 'status'),
+        Index('idx_loan_offers_expires', 'expires_at'),
+    )
+
+
+class LoanRequest(Base):
+    """Loan request model for marketplace requests"""
+    __tablename__ = "loan_requests"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    borrower_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    amount = Column(Numeric(20, 8), nullable=False)
+    max_interest_rate = Column(Numeric(5, 2), nullable=False)  # Maximum acceptable APR
+    term_days = Column(Integer, nullable=False)
+    collateral_amount = Column(Numeric(20, 8), nullable=True)
+    collateral_tokens = Column(JSON, nullable=True)  # Array of available collateral tokens
+    request_type = Column(String(20), nullable=False, default='standard')  # 'standard' or 'auction'
+    auction_end_time = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(20), nullable=False, default='open', index=True)
+    winning_offer_id = Column(Integer, ForeignKey("loan_offers.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    borrower = relationship("User", foreign_keys=[borrower_address])
+    winning_offer = relationship("LoanOffer", foreign_keys=[winning_offer_id])
+    
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="chk_request_amount"),
+        CheckConstraint("max_interest_rate >= 0 AND max_interest_rate <= 100", name="chk_request_max_rate"),
+        CheckConstraint("term_days > 0", name="chk_request_term"),
+        CheckConstraint("request_type IN ('standard', 'auction')", name="chk_request_type"),
+        CheckConstraint("status IN ('open', 'bidding', 'accepted', 'expired', 'cancelled')", name="chk_request_status"),
+        Index('idx_loan_requests_borrower', 'borrower_address'),
+        Index('idx_loan_requests_status', 'status'),
+        Index('idx_loan_requests_type', 'request_type'),
+    )
+
+
+class CollateralPosition(Base):
+    """Collateral position model for multi-asset collateral"""
+    __tablename__ = "collateral_positions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    loan_id = Column(Integer, ForeignKey("loans.id"), nullable=False, index=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    token_address = Column(String(42), nullable=False, index=True)
+    amount = Column(Numeric(36, 0), nullable=False)  # Token amount (can be very large)
+    value_usd = Column(Numeric(20, 8), nullable=False)  # USD value
+    ltv_ratio = Column(Numeric(5, 2), nullable=True)  # Current LTV for this position
+    health_ratio = Column(Numeric(5, 4), nullable=True)  # Health ratio (0-1)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    metadata = Column(JSON, nullable=True)
+    
+    # Relationships
+    loan = relationship("Loan")
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="chk_collateral_amount"),
+        CheckConstraint("value_usd >= 0", name="chk_collateral_value"),
+        CheckConstraint("health_ratio >= 0 AND health_ratio <= 1", name="chk_health_ratio"),
+        Index('idx_collateral_loan', 'loan_id'),
+        Index('idx_collateral_wallet', 'wallet_address'),
+        Index('idx_collateral_token', 'token_address'),
+    )
+
+
+class RebalanceHistory(Base):
+    """Rebalance history model for tracking collateral rebalancing"""
+    __tablename__ = "rebalance_history"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    loan_id = Column(Integer, ForeignKey("loans.id"), nullable=False, index=True)
+    rebalance_type = Column(String(20), nullable=False)  # 'auto' or 'manual'
+    from_token = Column(String(42), nullable=False)
+    to_token = Column(String(42), nullable=False)
+    from_amount = Column(Numeric(36, 0), nullable=False)
+    to_amount = Column(Numeric(36, 0), nullable=False)
+    tx_hash = Column(String(66), nullable=True, index=True)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    loan = relationship("Loan")
+    
+    __table_args__ = (
+        CheckConstraint("rebalance_type IN ('auto', 'manual')", name="chk_rebalance_type"),
+        Index('idx_rebalance_loan', 'loan_id'),
+        Index('idx_rebalance_created', 'created_at'),
+    )
+
+
+class YieldStrategy(Base):
+    """Yield strategy model for yield optimization"""
+    __tablename__ = "yield_strategies"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    strategy_type = Column(String(20), nullable=False)  # 'staking', 'yield_farming', 'auto_compound'
+    protocol = Column(String(100), nullable=False)
+    token_address = Column(String(42), nullable=False, index=True)
+    amount = Column(Numeric(36, 0), nullable=False)
+    apy = Column(Numeric(5, 2), nullable=True)  # Current APY percentage
+    auto_compound_enabled = Column(Boolean, default=False, nullable=False)
+    last_compounded_at = Column(DateTime(timezone=True), nullable=True)
+    total_rewards = Column(Numeric(36, 0), nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("strategy_type IN ('staking', 'yield_farming', 'auto_compound')", name="chk_strategy_type"),
+        CheckConstraint("amount > 0", name="chk_strategy_amount"),
+        CheckConstraint("apy >= 0 AND apy <= 1000", name="chk_strategy_apy"),  # Allow high APY
+        Index('idx_yield_wallet', 'wallet_address'),
+        Index('idx_yield_type', 'strategy_type'),
+        Index('idx_yield_protocol', 'protocol'),
+    )
+
+
+class UserPreferences(Base):
+    """User preferences model for loan negotiation and auto-acceptance"""
+    __tablename__ = "user_preferences"
+    
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), primary_key=True)
+    max_interest_rate = Column(Numeric(5, 2), nullable=True)  # Maximum acceptable APR
+    term_days_min = Column(Integer, nullable=True)
+    term_days_max = Column(Integer, nullable=True)
+    max_loan_amount = Column(Numeric(20, 8), nullable=True)
+    preferred_collateral_tokens = Column(JSON, nullable=True)  # Array of preferred token addresses
+    auto_negotiate_enabled = Column(Boolean, default=False, nullable=False)
+    auto_accept_threshold = Column(JSON, nullable=True)  # Conditions for auto-acceptance
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("max_interest_rate IS NULL OR (max_interest_rate >= 0 AND max_interest_rate <= 100)", name="chk_max_interest_rate"),
+        CheckConstraint("term_days_min IS NULL OR term_days_min > 0", name="chk_term_days_min"),
+        CheckConstraint("term_days_max IS NULL OR term_days_max >= term_days_min", name="chk_term_days_range"),
+        CheckConstraint("max_loan_amount IS NULL OR max_loan_amount > 0", name="chk_max_loan_amount"),
+    )
+
+
+class NegotiationSession(Base):
+    """Negotiation session model for auto-negotiation tracking"""
+    __tablename__ = "negotiation_sessions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    loan_request_id = Column(Integer, ForeignKey("loan_requests.id"), nullable=True)
+    preferences_id = Column(String(42), ForeignKey("user_preferences.wallet_address"), nullable=True)
+    status = Column(String(20), nullable=False, default='active', index=True)
+    current_offer_id = Column(Integer, ForeignKey("loan_offers.id"), nullable=True)
+    negotiation_history = Column(JSON, nullable=True)  # Track offers, counters, and actions
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    loan_request = relationship("LoanRequest")
+    preferences = relationship("UserPreferences", foreign_keys=[preferences_id])
+    current_offer = relationship("LoanOffer", foreign_keys=[current_offer_id])
+    
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'completed', 'cancelled', 'expired')", name="chk_negotiation_status"),
+        Index('idx_negotiation_wallet', 'wallet_address'),
+        Index('idx_negotiation_status', 'status'),
+    )
+
+
+class Alert(Base):
+    """Alert model for risk alerts and notifications"""
+    __tablename__ = "alerts"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False, index=True)  # 'score_drop', 'loan_risk', etc.
+    severity = Column(String(20), nullable=False, default='warning')  # 'info', 'warning', 'critical'
+    message = Column(Text, nullable=False)
+    suggested_actions = Column(JSON, nullable=True)  # Array of suggested actions
+    read = Column(Boolean, default=False, nullable=False, index=True)
+    dismissed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("severity IN ('info', 'warning', 'critical')", name="chk_alert_severity"),
+        Index('idx_alerts_wallet_read', 'wallet_address', 'read'),
+        Index('idx_alerts_type_severity', 'alert_type', 'severity'),
+    )
+
+
+class NotificationPreference(Base):
+    """Notification preferences model for multi-channel notifications"""
+    __tablename__ = "notification_preferences"
+    
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), primary_key=True)
+    in_app_enabled = Column(Boolean, default=True, nullable=False)
+    email_enabled = Column(Boolean, default=False, nullable=False)
+    push_enabled = Column(Boolean, default=False, nullable=False)
+    sms_enabled = Column(Boolean, default=False, nullable=False)
+    email_address = Column(String(255), nullable=True)
+    phone_number = Column(String(20), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("email_address IS NULL OR email_address ~ '^[^@]+@[^@]+\\.[^@]+$'", name="chk_email_format"),
+    )
+
+
+class ScoreShare(Base):
+    """Score share model for tracking social media shares"""
+    __tablename__ = "score_shares"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    share_type = Column(String(20), nullable=False, index=True)  # 'twitter', 'linkedin', 'facebook', 'custom'
+    badge_style = Column(String(20), nullable=False, default='minimal')
+    shared_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    share_url = Column(String(500), nullable=True)
+    clicks = Column(Integer, default=0, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("share_type IN ('twitter', 'linkedin', 'facebook', 'custom')", name="chk_share_type"),
+        CheckConstraint("badge_style IN ('minimal', 'detailed', 'verified')", name="chk_badge_style"),
+        Index('idx_score_shares_wallet', 'wallet_address'),
+        Index('idx_score_shares_type', 'share_type'),
+        Index('idx_score_shares_shared_at', 'shared_at'),
+    )
+
+
+class LeaderboardEntry(Base):
+    """Leaderboard entry model for ranking users"""
+    __tablename__ = "leaderboard_entries"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    score = Column(Integer, nullable=False, index=True)
+    risk_band = Column(Integer, nullable=False)
+    rank = Column(Integer, nullable=False, index=True)
+    category = Column(String(20), nullable=False, index=True)  # 'all_time', 'monthly', 'weekly'
+    period_start = Column(DateTime(timezone=True), nullable=True)
+    period_end = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        CheckConstraint("score >= 0 AND score <= 1000", name="chk_leaderboard_score_range"),
+        CheckConstraint("risk_band >= 0 AND risk_band <= 3", name="chk_leaderboard_risk_band"),
+        CheckConstraint("rank > 0", name="chk_leaderboard_rank"),
+        CheckConstraint("category IN ('all_time', 'monthly', 'weekly')", name="chk_leaderboard_category"),
+        Index('idx_leaderboard_wallet_category', 'wallet_address', 'category'),
+        Index('idx_leaderboard_category_rank', 'category', 'rank'),
+        Index('idx_leaderboard_score', 'score'),
+    )
+
+
+class ReferralReward(Base):
+    """Referral reward model for tracking NCRD token rewards"""
+    __tablename__ = "referral_rewards"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    referral_id = Column(Integer, ForeignKey("referrals.id"), nullable=True, index=True)
+    recipient_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    reward_type = Column(String(20), nullable=False, index=True)  # 'referrer', 'referred', 'milestone'
+    amount_ncrd = Column(Numeric(20, 8), nullable=False)
+    status = Column(String(20), nullable=False, default='pending', index=True)  # 'pending', 'distributed', 'failed'
+    distribution_tx_hash = Column(String(66), nullable=True, index=True)
+    distributed_at = Column(DateTime(timezone=True), nullable=True)
+    metadata = Column(JSON, nullable=True)  # Additional reward metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    recipient = relationship("User", foreign_keys=[recipient_address])
+    
+    __table_args__ = (
+        CheckConstraint("reward_type IN ('referrer', 'referred', 'milestone')", name="chk_reward_type"),
+        CheckConstraint("status IN ('pending', 'distributed', 'failed')", name="chk_reward_status"),
+        CheckConstraint("amount_ncrd > 0", name="chk_reward_amount"),
+        Index('idx_referral_rewards_recipient_status', 'recipient_address', 'status'),
+        Index('idx_referral_rewards_status', 'status'),
+    )
+
+
+class Team(Base):
+    """Team model for DAOs/organizations"""
+    __tablename__ = "teams"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_name = Column(String(100), nullable=False, index=True)
+    team_type = Column(String(20), nullable=False, default='custom')  # 'dao', 'organization', 'custom'
+    admin_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    admin = relationship("User", foreign_keys=[admin_address])
+    members = relationship("TeamMember", back_populates="team")
+    scores = relationship("TeamScore", back_populates="team")
+    
+    __table_args__ = (
+        CheckConstraint("team_type IN ('dao', 'organization', 'custom')", name="chk_team_type"),
+        Index('idx_teams_admin', 'admin_address'),
+    )
+
+
+class TeamMember(Base):
+    """Team member model"""
+    __tablename__ = "team_members"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False, index=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    role = Column(String(20), nullable=False, default='member')  # 'admin', 'member'
+    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    contribution_score = Column(Numeric(5, 2), nullable=True)  # For weighted calculations
+    
+    # Relationships
+    team = relationship("Team", back_populates="members")
+    user = relationship("User", foreign_keys=[wallet_address])
+    
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'member')", name="chk_team_member_role"),
+        UniqueConstraint('team_id', 'wallet_address', name='uq_team_member'),
+        Index('idx_team_members_team', 'team_id'),
+        Index('idx_team_members_wallet', 'wallet_address'),
+    )
+
+
+class TeamScore(Base):
+    """Team score model for aggregate team credit scores"""
+    __tablename__ = "team_scores"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False, index=True)
+    aggregate_score = Column(Integer, nullable=False)
+    member_count = Column(Integer, nullable=False)
+    calculated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    
+    # Relationships
+    team = relationship("Team", back_populates="scores")
+    
+    __table_args__ = (
+        CheckConstraint("aggregate_score >= 0 AND aggregate_score <= 1000", name="chk_team_score_range"),
+        CheckConstraint("member_count > 0", name="chk_team_member_count"),
+        Index('idx_team_scores_team', 'team_id'),
+        Index('idx_team_scores_calculated', 'calculated_at'),
+    )
+
+
+class CreditReport(Base):
+    """Credit report model for storing generated reports"""
+    __tablename__ = "credit_reports"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    report_type = Column(String(20), nullable=False, default='full')  # 'full', 'summary', 'custom'
+    format = Column(String(10), nullable=False, default='pdf')  # 'pdf', 'json', 'csv'
+    generated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    file_path = Column(String(500), nullable=True)
+    file_url = Column(String(500), nullable=True)
+    metadata = Column(JSON, nullable=True)  # Report metadata and data
+    
+    # Relationships
+    user = relationship("User")
+    shares = relationship("ReportShare", back_populates="report")
+    
+    __table_args__ = (
+        CheckConstraint("report_type IN ('full', 'summary', 'custom')", name="chk_report_type"),
+        CheckConstraint("format IN ('pdf', 'json', 'csv')", name="chk_report_format"),
+        Index('idx_credit_reports_wallet', 'wallet_address'),
+        Index('idx_credit_reports_generated', 'generated_at'),
+    )
+
+
+class ReportShare(Base):
+    """Report share model for sharing reports with protocols"""
+    __tablename__ = "report_shares"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_id = Column(Integer, ForeignKey("credit_reports.id"), nullable=False, index=True)
+    wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
+    shared_with_address = Column(String(42), nullable=False, index=True)  # Protocol or user address
+    share_token = Column(String(100), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    accessed_at = Column(DateTime(timezone=True), nullable=True)
+    access_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    report = relationship("CreditReport", back_populates="shares")
+    user = relationship("User", foreign_keys=[wallet_address])
+    
+    __table_args__ = (
+        Index('idx_report_shares_token', 'share_token', unique=True),
+        Index('idx_report_shares_wallet', 'wallet_address'),
+        Index('idx_report_shares_shared_with', 'shared_with_address'),
+        Index('idx_report_shares_expires', 'expires_at'),
+    )
+
+
+class APIAccess(Base):
+    """API access model for third-party protocol access"""
+    __tablename__ = "api_access"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    protocol_address = Column(String(42), nullable=False, index=True)
+    api_key = Column(String(100), nullable=False, unique=True, index=True)  # Hashed API key
+    permissions = Column(JSON, nullable=True)  # Scoped permissions
+    rate_limit = Column(Integer, default=60, nullable=False)  # Requests per minute
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    
+    __table_args__ = (
+        CheckConstraint("rate_limit > 0", name="chk_rate_limit"),
+        Index('idx_api_access_protocol', 'protocol_address'),
+        Index('idx_api_access_key', 'api_key', unique=True),
+        Index('idx_api_access_expires', 'expires_at'),
     )

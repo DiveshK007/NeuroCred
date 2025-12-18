@@ -3,10 +3,15 @@ NeuroLend AI Agent for loan negotiation
 Simple rule-based agent (can be upgraded to LangChain later)
 """
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
+from decimal import Decimal
 from services.scoring import ScoringService
 from services.blockchain import BlockchainService
+from services.loan_recommender import LoanRecommender
+from services.preference_manager import PreferenceManager
+from services.loan_marketplace import LoanMarketplace
+from services.offer_aggregator import OfferAggregator
 from core.nonce import nonce_manager
 from core.signing import LoanOfferSigner
 
@@ -18,6 +23,10 @@ class NeuroLendAgent:
         self.blockchain_service = BlockchainService()
         self.signer = LoanOfferSigner()
         self.lending_vault_address = os.getenv("LENDING_VAULT_ADDRESS")
+        self.loan_recommender = LoanRecommender()
+        self.preference_manager = PreferenceManager()
+        self.marketplace = LoanMarketplace()
+        self.offer_aggregator = OfferAggregator()
         
     async def process_chat(self, user_address: str, message: str) -> Dict:
         """

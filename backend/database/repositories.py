@@ -115,7 +115,10 @@ class ScoreHistoryRepository:
         wallet_address: str,
         score: int,
         risk_band: int,
-        timestamp: Optional[datetime] = None
+        previous_score: Optional[int] = None,
+        explanation: Optional[str] = None,
+        change_reason: Optional[str] = None,
+        computed_at: Optional[datetime] = None
     ) -> ScoreHistory:
         """Add score history entry"""
         try:
@@ -123,7 +126,10 @@ class ScoreHistoryRepository:
                 wallet_address=wallet_address,
                 score=score,
                 risk_band=risk_band,
-                timestamp=timestamp or datetime.utcnow()
+                previous_score=previous_score,
+                explanation=explanation,
+                change_reason=change_reason,
+                computed_at=computed_at or datetime.utcnow()
             )
             session.add(history)
             return history
@@ -136,27 +142,45 @@ class ScoreHistoryRepository:
         session: AsyncSession,
         wallet_address: str,
         limit: int = 100,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> List[ScoreHistory]:
         """Get score history for an address"""
         try:
             query = select(ScoreHistory).where(ScoreHistory.wallet_address == wallet_address)
             
-            if start_time:
-                query = query.where(ScoreHistory.timestamp >= start_time)
-            if end_time:
-                query = query.where(ScoreHistory.timestamp <= end_time)
+            if start_date:
+                query = query.where(ScoreHistory.computed_at >= start_date)
+            if end_date:
+                query = query.where(ScoreHistory.computed_at <= end_date)
             
             result = await session.execute(
                 query
-                .order_by(ScoreHistory.timestamp.desc())
+                .order_by(ScoreHistory.computed_at.desc())
                 .limit(limit)
             )
             return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Error getting history: {e}", exc_info=True, extra={"address": wallet_address})
             return []
+    
+    @staticmethod
+    async def get_latest_score(
+        session: AsyncSession,
+        wallet_address: str
+    ) -> Optional[ScoreHistory]:
+        """Get latest score history entry"""
+        try:
+            result = await session.execute(
+                select(ScoreHistory)
+                .where(ScoreHistory.wallet_address == wallet_address)
+                .order_by(ScoreHistory.computed_at.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error getting latest score: {e}", exc_info=True, extra={"address": wallet_address})
+            return None
     
     @staticmethod
     async def cleanup_old_history(
@@ -167,7 +191,7 @@ class ScoreHistoryRepository:
         try:
             cutoff = datetime.utcnow() - timedelta(days=days)
             result = await session.execute(
-                delete(ScoreHistory).where(ScoreHistory.timestamp < cutoff)
+                delete(ScoreHistory).where(ScoreHistory.computed_at < cutoff)
             )
             return result.rowcount
         except Exception as e:

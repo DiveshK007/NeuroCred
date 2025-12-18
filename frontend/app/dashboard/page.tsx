@@ -18,6 +18,9 @@ import { Layout } from "@/components/layout/Layout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/button";
 import { CreditScoreOrb } from "@/components/credit/CreditScoreOrb";
+import { ScoreHistoryChart } from "@/components/credit/ScoreHistoryChart";
+import { ScorePredictor } from "@/components/credit/ScorePredictor";
+import { PaymentReminder } from "@/components/loans/PaymentReminder";
 import { handleApiError, formatError } from "@/lib/errors";
 import { showErrorToast } from "@/components/ui/ErrorToast";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -321,6 +324,31 @@ export default function Dashboard() {
               )}
             </motion.div>
           </div>
+
+          {/* Score History and Predictor Section */}
+          {isConnected && address && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="grid lg:grid-cols-2 gap-8 mt-8"
+            >
+              <ScoreHistoryChart address={address} />
+              <ScorePredictor />
+            </motion.div>
+          )}
+
+          {/* Payment Reminders */}
+          {isConnected && address && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="mt-8"
+            >
+              <PaymentReminder />
+            </motion.div>
+          )}
         </div>
       </div>
     </Layout>

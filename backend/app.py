@@ -437,6 +437,207 @@ async def generate_score(
         log_score_generation(request, score_request.address, 0, "failure", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# Score History API Models
+class ScoreHistoryResponse(BaseModel):
+    wallet_address: str
+    history: List[Dict[str, Any]]
+    total_count: int
+
+class ScoreTrendsResponse(BaseModel):
+    wallet_address: str
+    current_score: int
+    change_30d: int
+    change_30d_percent: float
+    trend_direction: str  # "up", "down", "stable"
+    average_score: float
+    highest_score: int
+    lowest_score: int
+
+class ScorePredictRequest(BaseModel):
+    scenario: str = Field(..., description="Scenario type: loan_repayment, staking, transaction_volume, portfolio_diversification")
+    scenario_data: Optional[Dict[str, Any]] = Field(None, description="Scenario-specific data")
+
+class ScorePredictResponse(BaseModel):
+    predicted_score: int
+    predicted_change: int
+    current_score: int
+    confidence_level: float
+    explanation: str
+    scenario: str
+
+@app.get("/api/score/{address}/history", response_model=ScoreHistoryResponse)
+@limiter.limit("30/minute")
+async def get_score_history(
+    request: Request,
+    address: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get score history for an address
+    Query params: start_date (ISO format), end_date (ISO format), limit
+    """
+    try:
+        from datetime import datetime
+        from database.connection import get_session
+        from database.repositories import ScoreHistoryRepository
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        # Parse dates
+        start_dt = None
+        end_dt = None
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        if end_date:
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        
+        # Fetch history
+        async with get_session() as session:
+            history_entries = await ScoreHistoryRepository.get_history(
+                session, address, limit, start_dt, end_dt
+            )
+        
+        # Convert to dict format
+        history = []
+        for entry in history_entries:
+            history.append({
+                "id": entry.id,
+                "score": entry.score,
+                "risk_band": entry.risk_band,
+                "previous_score": entry.previous_score,
+                "explanation": entry.explanation,
+                "change_reason": entry.change_reason,
+                "computed_at": entry.computed_at.isoformat() if entry.computed_at else None,
+            })
+        
+        return ScoreHistoryResponse(
+            wallet_address=address,
+            history=history,
+            total_count=len(history)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting score history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/score/{address}/trends", response_model=ScoreTrendsResponse)
+@limiter.limit("30/minute")
+async def get_score_trends(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get score trends and statistics for an address
+    """
+    try:
+        from datetime import datetime, timedelta
+        from database.connection import get_session
+        from database.repositories import ScoreHistoryRepository, ScoreRepository
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        # Get current score
+        async with get_session() as session:
+            current_score_entry = await ScoreRepository.get_score(session, address)
+            current_score = current_score_entry.score if current_score_entry else 0
+            
+            # Get history for last 30 days
+            start_date = datetime.utcnow() - timedelta(days=30)
+            history = await ScoreHistoryRepository.get_history(session, address, limit=100, start_date=start_date)
+        
+        if not history:
+            return ScoreTrendsResponse(
+                wallet_address=address,
+                current_score=current_score,
+                change_30d=0,
+                change_30d_percent=0.0,
+                trend_direction="stable",
+                average_score=float(current_score),
+                highest_score=current_score,
+                lowest_score=current_score
+            )
+        
+        # Calculate trends
+        oldest_score = history[-1].score if history else current_score
+        change_30d = current_score - oldest_score
+        change_30d_percent = (change_30d / oldest_score * 100) if oldest_score > 0 else 0.0
+        
+        # Determine trend direction
+        if change_30d > 10:
+            trend_direction = "up"
+        elif change_30d < -10:
+            trend_direction = "down"
+        else:
+            trend_direction = "stable"
+        
+        # Calculate statistics
+        scores = [entry.score for entry in history]
+        scores.append(current_score)
+        average_score = sum(scores) / len(scores) if scores else current_score
+        highest_score = max(scores) if scores else current_score
+        lowest_score = min(scores) if scores else current_score
+        
+        return ScoreTrendsResponse(
+            wallet_address=address,
+            current_score=current_score,
+            change_30d=change_30d,
+            change_30d_percent=change_30d_percent,
+            trend_direction=trend_direction,
+            average_score=average_score,
+            highest_score=highest_score,
+            lowest_score=lowest_score
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting score trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/score/{address}/predict", response_model=ScorePredictResponse)
+@limiter.limit("20/minute")
+async def predict_score_change(
+    request: Request,
+    address: str,
+    predict_request: ScorePredictRequest,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Predict score change based on scenario
+    """
+    try:
+        from database.connection import get_session
+        from database.repositories import ScoreRepository
+        from services.score_predictor import ScorePredictorService
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        # Get current score
+        async with get_session() as session:
+            score_entry = await ScoreRepository.get_score(session, address)
+            current_score = score_entry.score if score_entry else 500
+        
+        # Predict change
+        prediction = ScorePredictorService.predict_score_change(
+            current_score=current_score,
+            scenario=predict_request.scenario,
+            scenario_data=predict_request.scenario_data or {}
+        )
+        
+        return ScorePredictResponse(**prediction)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error predicting score: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.get("/api/score/{address}", response_model=ScoreResponse)
 @limiter.limit("60/minute")
 async def get_score(request: Request, address: str):
@@ -636,6 +837,432 @@ async def chat(
             raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# Loan Management API Models
+class LoanResponse(BaseModel):
+    id: Optional[int] = None
+    loan_id: int
+    wallet_address: str
+    amount: float
+    interest_rate: float
+    term_days: int
+    status: str
+    collateral_amount: Optional[float] = None
+    collateral_token: Optional[str] = None
+    created_at: Optional[str] = None
+    due_date: Optional[str] = None
+    repaid_at: Optional[str] = None
+    tx_hash: Optional[str] = None
+
+class LoansListResponse(BaseModel):
+    loans: List[LoanResponse]
+    total_count: int
+
+class RepaymentScheduleResponse(BaseModel):
+    loan_id: int
+    schedule: List[Dict[str, Any]]
+    total_principal: float
+    total_interest: float
+    total_amount: float
+
+class EarlyRepaymentRequest(BaseModel):
+    loan_id: int
+    early_payment_date: str  # ISO format
+    early_payment_amount: Optional[float] = None
+
+class EarlyRepaymentResponse(BaseModel):
+    savings: float
+    interest_saved: float
+    days_saved: int
+    original_total: float
+    early_total: float
+    original_interest: float
+    early_interest: float
+
+class LoanComparisonRequest(BaseModel):
+    loan1: Dict[str, Any]
+    loan2: Dict[str, Any]
+
+class LoanComparisonResponse(BaseModel):
+    loan1: Dict[str, Any]
+    loan2: Dict[str, Any]
+    comparison: Dict[str, Any]
+
+@app.get("/api/loans/{address}", response_model=LoansListResponse)
+@limiter.limit("30/minute")
+async def get_user_loans(
+    request: Request,
+    address: str,
+    status: Optional[str] = None,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get all loans for a user
+    Query param: status (optional filter: active, repaid, defaulted, liquidated)
+    """
+    try:
+        from services.loan_service import LoanService
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        loan_service = LoanService()
+        
+        # Fetch loans (try database first, fallback to blockchain)
+        loans = await loan_service.get_user_loans(address, from_db=True)
+        
+        # Filter by status if provided
+        if status:
+            loans = [loan for loan in loans if loan.get("status") == status]
+        
+        # Convert to response format
+        loan_responses = [LoanResponse(**loan) for loan in loans]
+        
+        return LoansListResponse(
+            loans=loan_responses,
+            total_count=len(loan_responses)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting loans: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/loans/{address}/active", response_model=LoansListResponse)
+@limiter.limit("30/minute")
+async def get_active_loans(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get only active loans for a user"""
+    return await get_user_loans(request, address, status="active", current_user=current_user)
+
+@app.get("/api/loans/{loan_id}/schedule", response_model=RepaymentScheduleResponse)
+@limiter.limit("30/minute")
+async def get_loan_schedule(
+    request: Request,
+    loan_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get repayment schedule for a specific loan
+    """
+    try:
+        from services.loan_service import LoanService
+        from database.connection import get_session
+        from database.repositories import LoanRepository
+        
+        loan_service = LoanService()
+        
+        # Get loan from database
+        async with get_session() as session:
+            loans = await LoanRepository.get_user_loans(session, "")  # Get all loans
+            loan = next((l for l in loans if l.loan_id == loan_id), None)
+            
+            if not loan:
+                raise HTTPException(status_code=404, detail="Loan not found")
+            
+            # Calculate schedule
+            schedule = loan_service.calculate_repayment_schedule(
+                loan_amount=float(loan.amount),
+                interest_rate=float(loan.interest_rate),
+                term_days=loan.term_days,
+                start_date=loan.created_at
+            )
+            
+            # Calculate totals
+            total_principal = float(loan.amount)
+            total_interest = sum(payment["interest"] for payment in schedule)
+            total_amount = total_principal + total_interest
+            
+            return RepaymentScheduleResponse(
+                loan_id=loan_id,
+                schedule=schedule,
+                total_principal=total_principal,
+                total_interest=total_interest,
+                total_amount=total_amount
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting loan schedule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/loans/calculate-early-repayment", response_model=EarlyRepaymentResponse)
+@limiter.limit("20/minute")
+async def calculate_early_repayment(
+    request: Request,
+    repayment_request: EarlyRepaymentRequest,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Calculate savings from early loan repayment
+    """
+    try:
+        from datetime import datetime
+        from services.loan_service import LoanService
+        from database.connection import get_session
+        from database.repositories import LoanRepository
+        
+        loan_service = LoanService()
+        
+        # Get loan from database
+        async with get_session() as session:
+            loans = await LoanRepository.get_user_loans(session, "")
+            loan = next((l for l in loans if l.loan_id == repayment_request.loan_id), None)
+            
+            if not loan:
+                raise HTTPException(status_code=404, detail="Loan not found")
+            
+            # Parse early payment date
+            early_date = datetime.fromisoformat(repayment_request.early_payment_date.replace('Z', '+00:00'))
+            
+            # Calculate savings
+            savings = loan_service.calculate_early_repayment_savings(
+                loan_amount=float(loan.amount),
+                interest_rate=float(loan.interest_rate),
+                term_days=loan.term_days,
+                early_payment_date=early_date,
+                start_date=loan.created_at
+            )
+            
+            return EarlyRepaymentResponse(**savings)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating early repayment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/loans/compare", response_model=LoanComparisonResponse)
+@limiter.limit("20/minute")
+async def compare_loans(
+    request: Request,
+    comparison_request: LoanComparisonRequest,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Compare two loan offers
+    """
+    try:
+        from services.loan_service import LoanService
+        
+        loan_service = LoanService()
+        comparison = loan_service.compare_loans(
+            comparison_request.loan1,
+            comparison_request.loan2
+        )
+        
+        return LoanComparisonResponse(**comparison)
+    except Exception as e:
+        logger.error(f"Error comparing loans: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Portfolio API Models
+class TokenHoldingsResponse(BaseModel):
+    wallet_address: str
+    holdings: List[Dict[str, Any]]
+    total_value_usd: float
+
+class TransactionHistoryResponse(BaseModel):
+    wallet_address: str
+    transactions: List[Dict[str, Any]]
+    total_count: int
+    page: int = 1
+    limit: int = 100
+
+class DeFiActivityResponse(BaseModel):
+    wallet_address: str
+    protocols: List[Dict[str, Any]]
+    total_protocols: int
+    total_interactions: int
+    total_volume: float
+
+class RiskAssessmentResponse(BaseModel):
+    wallet_address: str
+    risk_score: int
+    risk_level: str
+    risk_factors: List[Dict[str, Any]]
+    recommendations: List[str]
+    assessment_date: str
+
+@app.get("/api/portfolio/{address}/holdings", response_model=TokenHoldingsResponse)
+@limiter.limit("30/minute")
+async def get_token_holdings(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get token holdings breakdown for an address
+    """
+    try:
+        from services.portfolio_service import PortfolioService
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        portfolio_service = PortfolioService()
+        holdings = await portfolio_service.get_token_holdings(address)
+        
+        total_value = sum(h["usd_value"] for h in holdings)
+        
+        return TokenHoldingsResponse(
+            wallet_address=address,
+            holdings=holdings,
+            total_value_usd=total_value
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting token holdings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/portfolio/{address}/transactions", response_model=TransactionHistoryResponse)
+@limiter.limit("30/minute")
+async def get_transaction_history(
+    request: Request,
+    address: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    tx_type: Optional[str] = None,
+    limit: int = 100,
+    page: int = 1,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get transaction history for an address
+    Query params: start_date, end_date, tx_type, limit, page
+    """
+    try:
+        from datetime import datetime
+        from database.connection import get_session
+        from database.repositories import TransactionRepository
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        # Parse dates
+        start_dt = None
+        end_dt = None
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        if end_date:
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        
+        # Fetch transactions
+        async with get_session() as session:
+            transactions_list = await TransactionRepository.get_transactions_by_user(
+                session, address, tx_type, limit * page
+            )
+        
+        # Apply date filters if provided
+        if start_dt or end_dt:
+            filtered = []
+            for tx in transactions_list:
+                tx_date = tx.block_timestamp
+                if tx_date:
+                    if start_dt and tx_date < start_dt:
+                        continue
+                    if end_dt and tx_date > end_dt:
+                        continue
+                filtered.append(tx)
+            transactions_list = filtered
+        
+        # Paginate
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated = transactions_list[start_idx:end_idx]
+        
+        # Convert to dict format
+        transactions = []
+        for tx in paginated:
+            transactions.append({
+                "id": tx.id,
+                "tx_hash": tx.tx_hash,
+                "tx_type": tx.tx_type,
+                "block_number": tx.block_number,
+                "block_timestamp": tx.block_timestamp.isoformat() if tx.block_timestamp else None,
+                "from_address": tx.from_address,
+                "to_address": tx.to_address,
+                "value": float(tx.value) / 1e18 if tx.value else None,
+                "gas_used": tx.gas_used,
+                "status": tx.status,
+                "contract_address": tx.contract_address,
+            })
+        
+        return TransactionHistoryResponse(
+            wallet_address=address,
+            transactions=transactions,
+            total_count=len(transactions_list),
+            page=page,
+            limit=limit
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting transaction history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/portfolio/{address}/defi-activity", response_model=DeFiActivityResponse)
+@limiter.limit("30/minute")
+async def get_defi_activity(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get DeFi activity summary for an address
+    """
+    try:
+        from services.portfolio_service import PortfolioService
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        portfolio_service = PortfolioService()
+        activity = await portfolio_service.get_defi_activity(address)
+        
+        return DeFiActivityResponse(
+            wallet_address=address,
+            **activity
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting DeFi activity: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/portfolio/{address}/risk-assessment", response_model=RiskAssessmentResponse)
+@limiter.limit("20/minute")
+async def get_risk_assessment(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """
+    Get portfolio risk assessment for an address
+    """
+    try:
+        from services.portfolio_service import PortfolioService
+        
+        # Validate address
+        address = validate_ethereum_address(address)
+        
+        portfolio_service = PortfolioService()
+        assessment = await portfolio_service.assess_portfolio_risk(address)
+        
+        return RiskAssessmentResponse(
+            wallet_address=address,
+            **assessment
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting risk assessment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.post("/api/update-on-chain", response_model=UpdateOnChainResponse)
 @limiter.limit("10/minute")
 async def update_on_chain(
@@ -672,6 +1299,1537 @@ async def update_on_chain(
         raise
     except Exception as e:
         log_on_chain_update(request, update_request.address, "", "failure", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# DeFi Integration API Models
+class LoanOfferCreate(BaseModel):
+    lender_address: str
+    amount_min: float
+    amount_max: float
+    interest_rate: float
+    term_days_min: int
+    term_days_max: int
+    collateral_required: bool = False
+    accepted_collateral_tokens: Optional[List[str]] = None
+    ltv_ratio: Optional[float] = None
+    expires_at: Optional[str] = None
+    borrower_address: Optional[str] = None
+
+class LoanRequestCreate(BaseModel):
+    borrower_address: str
+    amount: float
+    max_interest_rate: float
+    term_days: int
+    collateral_amount: Optional[float] = None
+    collateral_tokens: Optional[List[str]] = None
+    request_type: str = "standard"
+    auction_end_time: Optional[str] = None
+
+class OfferComparisonRequest(BaseModel):
+    offer_ids: List[int]
+    amount: float
+    term_days: int
+
+class CollateralAdd(BaseModel):
+    token_address: str
+    amount: float
+
+class CollateralRemove(BaseModel):
+    token_address: str
+    amount: float
+
+class RebalanceRequest(BaseModel):
+    strategy: str = "diversification"
+
+# Marketplace API Endpoints
+@app.get("/api/marketplace/offers")
+@limiter.limit("60/minute")
+async def browse_offers(
+    request: Request,
+    amount_min: Optional[float] = None,
+    amount_max: Optional[float] = None,
+    max_interest_rate: Optional[float] = None,
+    term_days: Optional[int] = None,
+    borrower_address: Optional[str] = None,
+    limit: int = 100
+):
+    """Browse available loan offers"""
+    try:
+        from services.loan_marketplace import LoanMarketplace
+        from database.connection import get_session
+        from decimal import Decimal
+        
+        marketplace = LoanMarketplace()
+        filters = {}
+        if amount_min:
+            filters['amount_min'] = Decimal(str(amount_min))
+        if amount_max:
+            filters['amount_max'] = Decimal(str(amount_max))
+        if max_interest_rate:
+            filters['max_interest_rate'] = Decimal(str(max_interest_rate))
+        if term_days:
+            filters['term_days'] = term_days
+        if borrower_address:
+            filters['borrower_address'] = validate_ethereum_address(borrower_address)
+        
+        async with get_session() as session:
+            offers = await marketplace.get_available_offers(filters, limit, session)
+        
+        return {"offers": offers}
+    except Exception as e:
+        logger.error(f"Error browsing offers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/marketplace/offers")
+@limiter.limit("20/minute")
+async def create_offer(
+    request: Request,
+    offer_data: LoanOfferCreate,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Create a loan offer"""
+    try:
+        from services.loan_marketplace import LoanMarketplace
+        from database.connection import get_session
+        from decimal import Decimal
+        from datetime import datetime
+        
+        marketplace = LoanMarketplace()
+        expires_at = None
+        if offer_data.expires_at:
+            expires_at = datetime.fromisoformat(offer_data.expires_at.replace('Z', '+00:00'))
+        
+        async with get_session() as session:
+            offer = await marketplace.create_offer(
+                validate_ethereum_address(offer_data.lender_address),
+                Decimal(str(offer_data.amount_min)),
+                Decimal(str(offer_data.amount_max)),
+                Decimal(str(offer_data.interest_rate)),
+                offer_data.term_days_min,
+                offer_data.term_days_max,
+                offer_data.collateral_required,
+                offer_data.accepted_collateral_tokens,
+                Decimal(str(offer_data.ltv_ratio)) if offer_data.ltv_ratio else None,
+                expires_at,
+                validate_ethereum_address(offer_data.borrower_address) if offer_data.borrower_address else None,
+                None,
+                session
+            )
+        
+        if not offer:
+            raise HTTPException(status_code=400, detail="Failed to create offer")
+        
+        return offer
+    except Exception as e:
+        logger.error(f"Error creating offer: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/marketplace/offers/{offer_id}/accept")
+@limiter.limit("20/minute")
+async def accept_offer(
+    request: Request,
+    offer_id: int,
+    borrower_address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Accept a loan offer"""
+    try:
+        from services.loan_marketplace import LoanMarketplace
+        from database.connection import get_session
+        
+        marketplace = LoanMarketplace()
+        borrower_address = validate_ethereum_address(borrower_address)
+        
+        async with get_session() as session:
+            success = await marketplace.accept_offer(offer_id, borrower_address, session)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to accept offer")
+        
+        return {"success": True, "message": "Offer accepted"}
+    except Exception as e:
+        logger.error(f"Error accepting offer: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/marketplace/compare")
+@limiter.limit("30/minute")
+async def compare_offers(
+    request: Request,
+    comparison: OfferComparisonRequest
+):
+    """Compare multiple offers side-by-side"""
+    try:
+        from services.rate_comparator import RateComparator
+        from services.loan_marketplace import LoanMarketplace
+        from database.connection import get_session
+        from decimal import Decimal
+        
+        comparator = RateComparator()
+        marketplace = LoanMarketplace()
+        
+        # Get offers
+        offers = []
+        async with get_session() as session:
+            for offer_id in comparison.offer_ids:
+                # Simplified: would need get_offer_by_id method
+                all_offers = await marketplace.get_available_offers({}, 1000, session)
+                offer = next((o for o in all_offers if o['id'] == offer_id), None)
+                if offer:
+                    offers.append(offer)
+        
+        matrix = await comparator.generate_comparison_matrix(
+            offers,
+            Decimal(str(comparison.amount)),
+            comparison.term_days
+        )
+        
+        return matrix
+    except Exception as e:
+        logger.error(f"Error comparing offers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Collateral API Endpoints
+@app.get("/api/collateral/{loan_id}")
+@limiter.limit("60/minute")
+async def get_collateral_positions(
+    request: Request,
+    loan_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get collateral positions for a loan"""
+    try:
+        from services.collateral_manager import CollateralManager
+        from database.connection import get_session
+        
+        manager = CollateralManager()
+        
+        async with get_session() as session:
+            positions = await manager.get_collateral_positions(loan_id, session)
+        
+        return {"loan_id": loan_id, "positions": positions}
+    except Exception as e:
+        logger.error(f"Error getting collateral positions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/collateral/{loan_id}/add")
+@limiter.limit("20/minute")
+async def add_collateral(
+    request: Request,
+    loan_id: int,
+    collateral: CollateralAdd,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Add collateral to a loan"""
+    try:
+        from services.collateral_manager import CollateralManager
+        from database.connection import get_session
+        from decimal import Decimal
+        
+        manager = CollateralManager()
+        
+        async with get_session() as session:
+            position = await manager.add_collateral(
+                loan_id,
+                validate_ethereum_address(collateral.token_address),
+                Decimal(str(collateral.amount)),
+                session
+            )
+        
+        if not position:
+            raise HTTPException(status_code=400, detail="Failed to add collateral")
+        
+        return position
+    except Exception as e:
+        logger.error(f"Error adding collateral: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/collateral/{loan_id}/health")
+@limiter.limit("60/minute")
+async def get_collateral_health(
+    request: Request,
+    loan_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get collateral health for a loan"""
+    try:
+        from services.collateral_health import CollateralHealthMonitor
+        from database.connection import get_session
+        
+        monitor = CollateralHealthMonitor()
+        
+        async with get_session() as session:
+            health = await monitor.monitor_health(loan_id, session)
+        
+        return health
+    except Exception as e:
+        logger.error(f"Error getting collateral health: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/collateral/{loan_id}/rebalance-suggestions")
+@limiter.limit("30/minute")
+async def get_rebalance_suggestions(
+    request: Request,
+    loan_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get rebalancing suggestions for a loan"""
+    try:
+        from services.collateral_rebalancer import CollateralRebalancer
+        from database.connection import get_session
+        
+        rebalancer = CollateralRebalancer()
+        
+        async with get_session() as session:
+            suggestions = await rebalancer.get_rebalance_suggestions(loan_id, session)
+        
+        return {"loan_id": loan_id, "suggestions": suggestions}
+    except Exception as e:
+        logger.error(f"Error getting rebalance suggestions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Yield API Endpoints
+@app.get("/api/yield/strategies")
+@limiter.limit("60/minute")
+async def get_yield_strategies(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get user yield strategies"""
+    try:
+        from services.yield_optimizer import YieldOptimizer
+        from database.connection import get_session
+        
+        optimizer = YieldOptimizer()
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            portfolio = await optimizer.analyze_portfolio(address, session)
+        
+        return portfolio
+    except Exception as e:
+        logger.error(f"Error getting yield strategies: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/yield/suggestions")
+@limiter.limit("30/minute")
+async def get_yield_suggestions(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get yield optimization suggestions"""
+    try:
+        from services.yield_optimizer import YieldOptimizer
+        from database.connection import get_session
+        
+        optimizer = YieldOptimizer()
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            suggestions = await optimizer.suggest_strategies(address, session)
+        
+        return {"address": address, "suggestions": suggestions}
+    except Exception as e:
+        logger.error(f"Error getting yield suggestions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/yield/staking-advisor")
+@limiter.limit("30/minute")
+async def get_staking_advisor(
+    request: Request,
+    address: str,
+    target_score_boost: Optional[int] = None,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get staking recommendations"""
+    try:
+        from services.staking_advisor import StakingAdvisor
+        from database.connection import get_session
+        
+        advisor = StakingAdvisor()
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            recommendation = await advisor.suggest_staking_amount(target_score_boost or 100, None)
+        
+        return {"address": address, **recommendation}
+    except Exception as e:
+        logger.error(f"Error getting staking advisor: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/yield/auto-compound/{strategy_id}/enable")
+@limiter.limit("20/minute")
+async def enable_auto_compound(
+    request: Request,
+    strategy_id: int,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Enable auto-compounding for a strategy"""
+    try:
+        from services.auto_compound import AutoCompoundService
+        from database.connection import get_session
+        
+        service = AutoCompoundService()
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            success = await service.enable_auto_compound(address, strategy_id, session)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to enable auto-compound")
+        
+        return {"success": True, "message": "Auto-compound enabled"}
+    except Exception as e:
+        logger.error(f"Error enabling auto-compound: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/yield/protocols")
+@limiter.limit("60/minute")
+async def get_yield_protocols(request: Request):
+    """Get available yield protocols"""
+    try:
+        from services.yield_farming import YieldFarmingService
+        
+        service = YieldFarmingService()
+        protocols = await service.get_protocols()
+        
+        return {"protocols": protocols}
+    except Exception as e:
+        logger.error(f"Error getting yield protocols: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# AI & Automation API Endpoints
+
+# Loan Recommendation Endpoints
+@app.get("/api/ai/recommendations")
+@limiter.limit("30/minute")
+async def get_loan_recommendations(
+    request: Request,
+    address: str,
+    constraints: Optional[str] = None,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get AI loan recommendations"""
+    try:
+        from services.loan_recommender import LoanRecommender
+        import json
+        
+        recommender = LoanRecommender()
+        address = validate_ethereum_address(address)
+        
+        constraints_dict = json.loads(constraints) if constraints else {}
+        
+        recommendation = await recommender.recommend_loan_amount(address, constraints_dict)
+        terms = await recommender.recommend_loan_terms(address, Decimal(str(recommendation.get('recommended_amount', 0))))
+        
+        return {
+            "address": address,
+            "amount_recommendation": recommendation,
+            "terms_recommendation": terms,
+        }
+    except Exception as e:
+        logger.error(f"Error getting loan recommendations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/ai/recommendations/calculate-affordability")
+@limiter.limit("30/minute")
+async def calculate_affordability(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Calculate borrowing capacity"""
+    try:
+        from services.loan_recommender import LoanRecommender
+        
+        recommender = LoanRecommender()
+        address = validate_ethereum_address(address)
+        
+        affordability = await recommender.calculate_affordability(address)
+        
+        return affordability
+    except Exception as e:
+        logger.error(f"Error calculating affordability: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/ai/preferences")
+@limiter.limit("60/minute")
+async def get_user_preferences(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get user preferences"""
+    try:
+        from services.preference_manager import PreferenceManager
+        
+        manager = PreferenceManager()
+        address = validate_ethereum_address(address)
+        
+        preferences = await manager.get_preferences(address)
+        
+        if not preferences:
+            return {"message": "No preferences found", "preferences": None}
+        
+        return preferences
+    except Exception as e:
+        logger.error(f"Error getting preferences: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/ai/preferences")
+@limiter.limit("20/minute")
+async def save_user_preferences(
+    request: Request,
+    preferences: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Save user preferences"""
+    try:
+        from services.preference_manager import PreferenceManager
+        
+        manager = PreferenceManager()
+        address = validate_ethereum_address(address)
+        
+        saved = await manager.save_preferences(address, preferences)
+        
+        if not saved:
+            raise HTTPException(status_code=400, detail="Failed to save preferences")
+        
+        return saved
+    except Exception as e:
+        logger.error(f"Error saving preferences: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Auto-Negotiation Endpoints
+@app.post("/api/ai/negotiate/start")
+@limiter.limit("20/minute")
+async def start_negotiation(
+    request: Request,
+    loan_request: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Start auto-negotiation"""
+    try:
+        from services.auto_negotiation import AutoNegotiationService
+        
+        service = AutoNegotiationService()
+        address = validate_ethereum_address(address)
+        
+        result = await service.start_negotiation(address, loan_request)
+        
+        if not result:
+            raise HTTPException(status_code=400, detail="Failed to start negotiation")
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error starting negotiation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/ai/negotiate/{negotiation_id}")
+@limiter.limit("60/minute")
+async def get_negotiation_status(
+    request: Request,
+    negotiation_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get negotiation status"""
+    try:
+        from services.auto_negotiation import AutoNegotiationService
+        
+        service = AutoNegotiationService()
+        
+        status = await service.get_negotiation_status(negotiation_id)
+        
+        if not status:
+            raise HTTPException(status_code=404, detail="Negotiation not found")
+        
+        return status
+    except Exception as e:
+        logger.error(f"Error getting negotiation status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/ai/negotiate/{negotiation_id}/cancel")
+@limiter.limit("20/minute")
+async def cancel_negotiation(
+    request: Request,
+    negotiation_id: int,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Cancel negotiation"""
+    try:
+        from services.auto_negotiation import AutoNegotiationService
+        
+        service = AutoNegotiationService()
+        address = validate_ethereum_address(address)
+        
+        success = await service.cancel_negotiation(negotiation_id, address)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to cancel negotiation")
+        
+        return {"success": True, "message": "Negotiation cancelled"}
+    except Exception as e:
+        logger.error(f"Error cancelling negotiation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Risk Alert Endpoints
+@app.get("/api/alerts")
+@limiter.limit("60/minute")
+async def get_alerts(
+    request: Request,
+    address: str,
+    include_read: bool = False,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get user alerts"""
+    try:
+        from services.alert_engine import AlertEngine
+        
+        engine = AlertEngine()
+        address = validate_ethereum_address(address)
+        
+        alerts = await engine.get_active_alerts(address, include_read)
+        
+        return {"address": address, "alerts": alerts}
+    except Exception as e:
+        logger.error(f"Error getting alerts: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/alerts/{alert_id}/read")
+@limiter.limit("30/minute")
+async def mark_alert_read(
+    request: Request,
+    alert_id: int,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Mark alert as read"""
+    try:
+        from services.alert_engine import AlertEngine
+        
+        engine = AlertEngine()
+        address = validate_ethereum_address(address)
+        
+        success = await engine.mark_alert_read(alert_id, address)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error marking alert as read: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/alerts/{alert_id}/dismiss")
+@limiter.limit("30/minute")
+async def dismiss_alert(
+    request: Request,
+    alert_id: int,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Dismiss alert"""
+    try:
+        from services.alert_engine import AlertEngine
+        
+        engine = AlertEngine()
+        address = validate_ethereum_address(address)
+        
+        success = await engine.dismiss_alert(alert_id, address)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error dismissing alert: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/alerts/preferences")
+@limiter.limit("60/minute")
+async def get_notification_preferences(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get notification preferences"""
+    try:
+        from services.notification_service import NotificationService
+        
+        service = NotificationService()
+        address = validate_ethereum_address(address)
+        
+        prefs = await service._get_notification_preferences(address)
+        
+        return prefs or {}
+    except Exception as e:
+        logger.error(f"Error getting notification preferences: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/alerts/preferences")
+@limiter.limit("20/minute")
+async def update_notification_preferences(
+    request: Request,
+    preferences: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Update notification preferences"""
+    try:
+        from database.connection import get_session
+        from database.models import NotificationPreference
+        from sqlalchemy import select
+        
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(NotificationPreference).where(NotificationPreference.wallet_address == address)
+            )
+            prefs = result.scalar_one_or_none()
+            
+            if prefs:
+                prefs.in_app_enabled = preferences.get('in_app_enabled', True)
+                prefs.email_enabled = preferences.get('email_enabled', False)
+                prefs.push_enabled = preferences.get('push_enabled', False)
+                if 'email_address' in preferences:
+                    prefs.email_address = preferences['email_address']
+            else:
+                prefs = NotificationPreference(
+                    wallet_address=address,
+                    in_app_enabled=preferences.get('in_app_enabled', True),
+                    email_enabled=preferences.get('email_enabled', False),
+                    push_enabled=preferences.get('push_enabled', False),
+                    email_address=preferences.get('email_address')
+                )
+                session.add(prefs)
+            
+            await session.commit()
+        
+        return {"success": True, "preferences": preferences}
+    except Exception as e:
+        logger.error(f"Error updating notification preferences: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Predictive Analytics Endpoints
+@app.post("/api/ai/predict/default-probability")
+@limiter.limit("30/minute")
+async def predict_default_probability(
+    request: Request,
+    address: str,
+    loan_amount: float,
+    term_days: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Predict default probability"""
+    try:
+        from services.default_predictor import DefaultPredictor
+        from decimal import Decimal
+        
+        predictor = DefaultPredictor()
+        address = validate_ethereum_address(address)
+        
+        prediction = await predictor.predict_default_probability(
+            address,
+            Decimal(str(loan_amount)),
+            term_days
+        )
+        
+        return prediction
+    except Exception as e:
+        logger.error(f"Error predicting default probability: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/ai/timing-advisor")
+@limiter.limit("30/minute")
+async def get_timing_advisor(
+    request: Request,
+    address: str,
+    desired_amount: Optional[float] = None,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get optimal borrowing timing"""
+    try:
+        from services.timing_advisor import TimingAdvisor
+        from decimal import Decimal
+        
+        advisor = TimingAdvisor()
+        address = validate_ethereum_address(address)
+        
+        timing = await advisor.suggest_borrowing_timing(
+            address,
+            Decimal(str(desired_amount)) if desired_amount else Decimal('0')
+        )
+        
+        return timing
+    except Exception as e:
+        logger.error(f"Error getting timing advisor: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/ai/market-impact")
+@limiter.limit("30/minute")
+async def get_market_impact(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get market impact analysis"""
+    try:
+        from services.market_impact_analyzer import MarketImpactAnalyzer
+        
+        analyzer = MarketImpactAnalyzer()
+        address = validate_ethereum_address(address)
+        
+        impact = await analyzer.analyze_market_impact_on_credit(address)
+        
+        return impact
+    except Exception as e:
+        logger.error(f"Error getting market impact: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Social & Community API Endpoints
+
+# Social Sharing Endpoints
+@app.get("/api/social/badge/{address}")
+@limiter.limit("60/minute")
+async def get_badge(
+    request: Request,
+    address: str,
+    style: str = "minimal",
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get badge image/data"""
+    try:
+        from services.badge_generator import BadgeGenerator
+        
+        generator = BadgeGenerator()
+        address = validate_ethereum_address(address)
+        
+        badge = await generator.generate_score_badge(address, style)
+        
+        return badge
+    except Exception as e:
+        logger.error(f"Error getting badge: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/social/share")
+@limiter.limit("30/minute")
+async def record_share(
+    request: Request,
+    share_data: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Record share event"""
+    try:
+        from database.connection import get_session
+        from database.models import ScoreShare
+        
+        address = validate_ethereum_address(address)
+        share_type = share_data.get('share_type', 'custom')
+        badge_style = share_data.get('badge_style', 'minimal')
+        share_url = share_data.get('share_url')
+        
+        async with get_session() as session:
+            share = ScoreShare(
+                wallet_address=address,
+                share_type=share_type,
+                badge_style=badge_style,
+                share_url=share_url
+            )
+            session.add(share)
+            await session.commit()
+        
+        return {"success": True, "share_id": share.id}
+    except Exception as e:
+        logger.error(f"Error recording share: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/social/verify/{address}")
+@limiter.limit("60/minute")
+async def get_verification_proof(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get on-chain verification proof"""
+    try:
+        from services.onchain_proof import OnChainProofService
+        
+        service = OnChainProofService()
+        address = validate_ethereum_address(address)
+        
+        proof = await service.generate_proof_data(address)
+        
+        return proof
+    except Exception as e:
+        logger.error(f"Error getting verification proof: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/social/share-links/{address}")
+@limiter.limit("60/minute")
+async def get_share_links(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get share links for all platforms"""
+    try:
+        from services.social_share import SocialShareService
+        
+        service = SocialShareService()
+        address = validate_ethereum_address(address)
+        
+        share_links = await service.generate_share_links(address)
+        
+        return share_links
+    except Exception as e:
+        logger.error(f"Error getting share links: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Leaderboard Endpoints
+@app.get("/api/leaderboard/top")
+@limiter.limit("60/minute")
+async def get_top_scores(
+    request: Request,
+    limit: int = 100,
+    timeframe: Optional[str] = None,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get top scores"""
+    try:
+        from services.leaderboard import LeaderboardService
+        
+        service = LeaderboardService()
+        
+        top_scores = await service.get_top_scores(limit, timeframe)
+        
+        return {"leaderboard": top_scores, "limit": limit, "timeframe": timeframe or "all_time"}
+    except Exception as e:
+        logger.error(f"Error getting top scores: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/leaderboard/rank/{address}")
+@limiter.limit("60/minute")
+async def get_user_rank(
+    request: Request,
+    address: str,
+    category: str = "all_time",
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get user rank"""
+    try:
+        from services.leaderboard import LeaderboardService
+        
+        service = LeaderboardService()
+        address = validate_ethereum_address(address)
+        
+        rank = await service.get_user_rank(address, category)
+        
+        if not rank:
+            raise HTTPException(status_code=404, detail="User not found in leaderboard")
+        
+        return rank
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting user rank: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/leaderboard/{category}")
+@limiter.limit("60/minute")
+async def get_leaderboard_category(
+    request: Request,
+    category: str,
+    limit: int = 100,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get leaderboard by category"""
+    try:
+        from services.leaderboard import LeaderboardService
+        
+        service = LeaderboardService()
+        
+        leaderboard = await service.get_leaderboard_category(category, limit)
+        
+        return {"category": category, "leaderboard": leaderboard}
+    except Exception as e:
+        logger.error(f"Error getting leaderboard category: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Referral Rewards Endpoints
+@app.get("/api/referrals/rewards/pending")
+@limiter.limit("60/minute")
+async def get_pending_rewards(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get pending rewards"""
+    try:
+        from services.referral_rewards import ReferralRewardsService
+        
+        service = ReferralRewardsService()
+        address = validate_ethereum_address(address)
+        
+        rewards = await service.get_pending_rewards(address)
+        
+        return {"address": address, "pending_rewards": rewards}
+    except Exception as e:
+        logger.error(f"Error getting pending rewards: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/referrals/rewards/distribute")
+@limiter.limit("10/minute")
+async def trigger_distribution(
+    request: Request,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Trigger distribution (admin only)"""
+    try:
+        from services.token_distributor import TokenDistributorService
+        
+        service = TokenDistributorService()
+        
+        # Check threshold
+        threshold_check = await service.check_distribution_threshold()
+        
+        if not threshold_check.get("threshold_reached", False):
+            return {
+                "success": False,
+                "message": "Threshold not reached",
+                "threshold_check": threshold_check,
+            }
+        
+        # Execute distribution
+        result = await service.execute_onchain_distribution()
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error triggering distribution: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/referrals/rewards/history")
+@limiter.limit("60/minute")
+async def get_reward_history(
+    request: Request,
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get reward history"""
+    try:
+        from database.connection import get_session
+        from database.models import ReferralReward
+        from sqlalchemy import select
+        
+        address = validate_ethereum_address(address)
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(ReferralReward).where(
+                    ReferralReward.recipient_address == address
+                ).order_by(ReferralReward.created_at.desc()).limit(100)
+            )
+            rewards = result.scalars().all()
+            
+            return {
+                "address": address,
+                "rewards": [
+                    {
+                        "id": r.id,
+                        "reward_type": r.reward_type,
+                        "amount_ncrd": float(r.amount_ncrd),
+                        "status": r.status,
+                        "distribution_tx_hash": r.distribution_tx_hash,
+                        "distributed_at": r.distributed_at.isoformat() if r.distributed_at else None,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                    }
+                    for r in rewards
+                ],
+            }
+    except Exception as e:
+        logger.error(f"Error getting reward history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Team Score Endpoints
+@app.post("/api/teams/create")
+@limiter.limit("20/minute")
+async def create_team(
+    request: Request,
+    team_data: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Create team"""
+    try:
+        from services.team_score import TeamScoreService
+        
+        service = TeamScoreService()
+        address = validate_ethereum_address(address)
+        
+        team = await service.create_team(
+            team_data.get('team_name'),
+            address,
+            team_data.get('member_addresses', []),
+            team_data.get('team_type', 'custom')
+        )
+        
+        if not team:
+            raise HTTPException(status_code=400, detail="Failed to create team")
+        
+        return team
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating team: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/teams/{team_id}/members")
+@limiter.limit("30/minute")
+async def add_team_member(
+    request: Request,
+    team_id: int,
+    member_data: Dict[str, Any],
+    address: str,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Add team member"""
+    try:
+        from services.team_score import TeamScoreService
+        
+        service = TeamScoreService()
+        address = validate_ethereum_address(address)
+        member_address = validate_ethereum_address(member_data.get('member_address'))
+        
+        success = await service.add_team_member(team_id, member_address, address)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to add team member")
+        
+        return {"success": True, "message": "Team member added"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding team member: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/teams/{team_id}/score")
+@limiter.limit("60/minute")
+async def get_team_score(
+    request: Request,
+    team_id: int,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get team score"""
+    try:
+        from services.team_score import TeamScoreService
+        
+        service = TeamScoreService()
+        
+        score = await service.calculate_team_score(team_id)
+        
+        if not score:
+            raise HTTPException(status_code=404, detail="Team not found")
+        
+        return score
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting team score: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/teams/leaderboard")
+@limiter.limit("60/minute")
+async def get_team_leaderboard(
+    request: Request,
+    limit: int = 100,
+    current_user: Optional[str] = Depends(get_current_user)
+):
+    """Get team leaderboard"""
+    try:
+        from services.team_score import TeamScoreService
+        
+        service = TeamScoreService()
+        
+        leaderboard = await service.get_team_leaderboard(limit)
+        
+        return {"leaderboard": leaderboard, "limit": limit}
+    except Exception as e:
+        logger.error(f"Error getting team leaderboard: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# ========== Analytics & Reporting Endpoints ==========
+
+async def get_wallet_address(request: Request) -> Optional[str]:
+    """Extract wallet address from request (header, query param, or authenticated user)"""
+    # Try header first
+    address = request.headers.get("X-Wallet-Address")
+    if address:
+        return address
+    
+    # Try query param
+    address = request.query_params.get("address")
+    if address:
+        return address
+    
+    # Try to get from current user if authenticated
+    try:
+        current_user = await get_current_user(request)
+        if current_user:
+            return current_user
+    except:
+        pass
+    
+    return None
+
+# Credit Report Endpoints
+@app.post("/api/reports/generate")
+async def generate_report(
+    request: Request,
+    report_type: str = "full",
+    format: str = "pdf"
+):
+    """Generate credit report"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from services.report_exporter import ReportExporter
+        
+        exporter = ReportExporter()
+        
+        if format == "pdf":
+            result = await exporter.export_pdf(address, {"report_type": report_type})
+        elif format == "json":
+            result = await exporter.export_json(address, {"report_type": report_type})
+        elif format == "csv":
+            result = await exporter.export_csv(address, {"report_type": report_type})
+        else:
+            raise HTTPException(status_code=400, detail="Invalid format")
+        
+        # Save report to database
+        from database.connection import get_session
+        from database.models import CreditReport
+        
+        async with get_session() as session:
+            report = CreditReport(
+                wallet_address=address,
+                report_type=report_type,
+                format=format,
+                file_path=result.get("file_path"),
+                file_url=result.get("file_url"),
+                metadata=result
+            )
+            session.add(report)
+            await session.commit()
+            await session.refresh(report)
+            
+            result["report_id"] = report.id
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/reports/{report_id}/download")
+async def download_report(report_id: int, request: Request):
+    """Download report file"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from database.connection import get_session
+        from database.models import CreditReport
+        from sqlalchemy import select
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(CreditReport).where(
+                    CreditReport.id == report_id,
+                    CreditReport.wallet_address == address
+                )
+            )
+            report = result.scalar_one_or_none()
+            
+            if not report:
+                raise HTTPException(status_code=404, detail="Report not found")
+            
+            # Return report data
+            return {
+                "report_id": report.id,
+                "format": report.format,
+                "metadata": report.metadata,
+                "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/reports/{report_id}")
+async def get_report(report_id: int, request: Request):
+    """Get report metadata"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from database.connection import get_session
+        from database.models import CreditReport
+        from sqlalchemy import select
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(CreditReport).where(
+                    CreditReport.id == report_id,
+                    CreditReport.wallet_address == address
+                )
+            )
+            report = result.scalar_one_or_none()
+            
+            if not report:
+                raise HTTPException(status_code=404, detail="Report not found")
+            
+            return {
+                "report_id": report.id,
+                "report_type": report.report_type,
+                "format": report.format,
+                "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+                "file_url": report.file_url,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/reports")
+async def list_reports(request: Request, limit: int = 20):
+    """List user's reports"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from database.connection import get_session
+        from database.models import CreditReport
+        from sqlalchemy import select, desc
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(CreditReport)
+                .where(CreditReport.wallet_address == address)
+                .order_by(desc(CreditReport.generated_at))
+                .limit(limit)
+            )
+            reports = result.scalars().all()
+            
+            return {
+                "reports": [
+                    {
+                        "report_id": r.id,
+                        "report_type": r.report_type,
+                        "format": r.format,
+                        "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+                        "file_url": r.file_url,
+                    }
+                    for r in reports
+                ]
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing reports: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/reports/share")
+async def share_report(request: Request):
+    """Share report with protocol"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        data = await request.json()
+        protocol_address = data.get("protocol_address")
+        report_id = data.get("report_id")
+        expires_in_days = data.get("expires_in_days", 30)
+        
+        if not protocol_address:
+            raise HTTPException(status_code=400, detail="Protocol address required")
+        
+        from services.report_share import ReportShareManager
+        
+        manager = ReportShareManager()
+        result = await manager.create_share_link(
+            address, protocol_address, report_id, expires_in_days
+        )
+        
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to create share")
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sharing report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/reports/shared")
+async def get_shared_reports(request: Request):
+    """Get shared reports"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from services.report_share import ReportShareManager
+        
+        manager = ReportShareManager()
+        reports = await manager.get_shared_reports(address)
+        
+        return {"shared_reports": reports}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting shared reports: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/reports/shared/{token}")
+async def access_shared_report(token: str):
+    """Access shared report via token"""
+    try:
+        from services.report_exporter import ReportExporter
+        
+        exporter = ReportExporter()
+        share_info = await exporter.validate_share_token(token)
+        
+        if not share_info:
+            raise HTTPException(status_code=404, detail="Invalid or expired share token")
+        
+        return share_info
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error accessing shared report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.delete("/api/reports/share/{share_id}")
+async def revoke_share(share_id: int, request: Request):
+    """Revoke shared report access"""
+    try:
+        address = await get_wallet_address(request)
+        if not address:
+            raise HTTPException(status_code=401, detail="Wallet address required")
+        
+        from services.report_share import ReportShareManager
+        
+        manager = ReportShareManager()
+        success = await manager.revoke_share(share_id, address)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Share not found")
+        
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error revoking share: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Analytics Endpoints
+@app.get("/api/analytics/breakdown/{address}")
+async def get_score_breakdown(address: str, request: Request):
+    """Get score breakdown"""
+    try:
+        from services.score_breakdown import ScoreBreakdownAnalyzer
+        
+        analyzer = ScoreBreakdownAnalyzer()
+        breakdown = await analyzer.breakdown_score(address)
+        
+        return breakdown
+    except Exception as e:
+        logger.error(f"Error getting score breakdown: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/analytics/comparison/{address}")
+async def get_wallet_comparison(address: str, request: Request, limit: int = 10):
+    """Compare with similar wallets"""
+    try:
+        from services.wallet_comparator import WalletComparator
+        
+        comparator = WalletComparator()
+        similar_wallets = await comparator.find_similar_wallets(address, limit=limit)
+        comparison_metrics = await comparator.get_comparison_metrics(address, similar_wallets)
+        percentile_rank = await comparator.get_percentile_rank(address)
+        
+        return {
+            "address": address,
+            "similar_wallets": similar_wallets,
+            "comparison_metrics": comparison_metrics,
+            "percentile_rank": percentile_rank,
+        }
+    except Exception as e:
+        logger.error(f"Error getting wallet comparison: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/analytics/benchmark/{address}")
+async def get_benchmark_comparison(address: str, request: Request, industry: Optional[str] = None):
+    """Compare to industry benchmark"""
+    try:
+        from services.benchmark_service import BenchmarkService
+        
+        benchmark_service = BenchmarkService()
+        comparison = await benchmark_service.compare_to_benchmark(address, industry)
+        
+        return comparison
+    except Exception as e:
+        logger.error(f"Error getting benchmark comparison: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/analytics/comprehensive/{address}")
+async def get_comprehensive_analytics(address: str, request: Request):
+    """Get comprehensive analytics"""
+    try:
+        from services.analytics_engine import AnalyticsEngine
+        from datetime import datetime
+        
+        engine = AnalyticsEngine()
+        analytics = await engine.get_comprehensive_analytics(address)
+        analytics["generated_at"] = datetime.utcnow().isoformat()
+        
+        return analytics
+    except Exception as e:
+        logger.error(f"Error getting comprehensive analytics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/analytics/insights/{address}")
+async def get_analytics_insights(address: str, request: Request):
+    """Get insights and recommendations"""
+    try:
+        from services.analytics_engine import AnalyticsEngine
+        
+        engine = AnalyticsEngine()
+        insights = await engine.generate_insights(address)
+        recommendations = await engine.get_recommendations(address)
+        
+        return {
+            "address": address,
+            "insights": insights,
+            "recommendations": recommendations,
+        }
+    except Exception as e:
+        logger.error(f"Error getting analytics insights: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # Add rate limit exception handler

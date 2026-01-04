@@ -49,10 +49,10 @@ async function main() {
     const network = await ethers.provider.getNetwork();
     console.log(`\n📡 Network: ${network.name} (Chain ID: ${network.chainId})`);
 
-    // Get explorer URL
-    const explorerUrl = network.chainId === 1337n
-      ? `https://testnet.qie.digital/address/${contractAddress}`
-      : `https://mainnet.qie.digital/address/${contractAddress}`;
+    // Get explorer URL based on network
+    const explorerUrl = network.chainId === 1990n
+      ? `https://mainnet.qie.digital/address/${contractAddress}`
+      : `https://testnet.qie.digital/address/${contractAddress}`;
     
     console.log(`\n🔗 Explorer: ${explorerUrl}`);
 

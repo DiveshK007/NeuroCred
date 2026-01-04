@@ -310,7 +310,7 @@ class ReportExporter:
                 "access_count": share.access_count,
                 "report": {
                     "address": report.wallet_address if report else None,
-                    "metadata": report.metadata if report else None,
+                    "metadata": report.extra_metadata if report else None,
                 } if report else None,
             }
         except Exception as e:

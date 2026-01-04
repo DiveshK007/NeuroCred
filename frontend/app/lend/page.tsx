@@ -10,6 +10,8 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getApiUrl } from '@/lib/api';
+import { getPrimaryRpcUrl, getNetworkConfig } from '@/lib/config/network';
+import { useMainnetWarning } from '@/app/hooks/useMainnetWarning';
 const LENDING_VAULT_ADDRESS = process.env.NEXT_PUBLIC_LENDING_VAULT_ADDRESS;
 
 const LENDING_VAULT_ABI = [
@@ -98,6 +100,8 @@ export default function LendPage() {
     }
   };
 
+  const { requireMainnetConfirmation } = useMainnetWarning();
+
   const handleAcceptOffer = async (event: CustomEvent) => {
     const { offer, signature } = event.detail;
     if (!address || !provider || !LENDING_VAULT_ADDRESS) {
@@ -110,15 +114,68 @@ export default function LendPage() {
       return;
     }
 
-    setIsLoading(true);
+    // Verify network before transaction
     try {
+      const network = await provider.getNetwork();
+      const networkConfig = getNetworkConfig();
+      if (network.chainId !== networkConfig.chainId) {
+        throw new Error(`Wrong network! Expected ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}), but connected to Chain ID: ${network.chainId.toString()}.`);
+      }
+    } catch (error: any) {
+      alert(`Network Error: ${error.message}\n\nPlease switch to the correct network before proceeding.`);
+      return;
+    }
+
+    // Require mainnet confirmation
+    // Safely format BigInt values for display
+    const formatAmount = (value: any): string => {
+      if (!value) return 'Unknown';
+      try {
+        // Convert to BigInt if it's a string or number
+        const bigIntValue = typeof value === 'bigint' 
+          ? value 
+          : typeof value === 'string' 
+            ? BigInt(value) 
+            : BigInt(String(value));
+        return ethers.formatEther(bigIntValue);
+      } catch (error) {
+        console.error('Error formatting amount:', error);
+        return 'Unknown';
+      }
+    };
+    
+    const loanAmount = formatAmount(offer.amount);
+    const collateralAmount = formatAmount(offer.collateralAmount);
+    const confirmed = await requireMainnetConfirmation(
+      'Create loan',
+      `Loan amount: ${loanAmount} QIEV3\nCollateral: ${collateralAmount} QIEV3`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    // Prevent double-submission
+    if (isLoading) {
+      console.warn('Transaction already in progress, ignoring duplicate request');
+      return;
+    }
+
+    setIsLoading(true);
+    let txHash: string | null = null;
+    
+    try {
+      // Verify provider is still connected
+      if (!provider || !address) {
+        throw new Error('Wallet disconnected. Please reconnect and try again.');
+      }
+      
       // Check if provider is responsive before proceeding
       try {
         await provider.getBlockNumber();
       } catch (rpcError: any) {
         // If RPC is having issues, try using a fallback provider
         console.warn('Primary RPC endpoint having issues, attempting fallback...', rpcError);
-        const fallbackRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc1testnet.qie.digital/';
+        const fallbackRpcUrl = getPrimaryRpcUrl();
         const fallbackProvider = new ethers.JsonRpcProvider(fallbackRpcUrl);
         
         // Test fallback provider
@@ -196,20 +253,44 @@ export default function LendPage() {
         value: formattedOffer.collateralAmount,
       });
       
-      await tx.wait();
+      txHash = tx.hash;
+      console.log('Transaction submitted:', txHash);
       
-      alert('Loan created successfully! Check your wallet.');
-      await loadActiveLoans(address, provider);
+      // Wait for confirmation with timeout (5 minutes)
+      const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      const confirmationPromise = tx.wait();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction confirmation timeout. Check your wallet for transaction status.')), TIMEOUT_MS)
+      );
+      
+      await Promise.race([confirmationPromise, timeoutPromise]);
+      
+      // Verify provider is still connected before loading loans
+      if (provider && address) {
+        await loadActiveLoans(address, provider);
+        alert('Loan created successfully! Check your wallet.');
+      } else {
+        alert('Loan transaction submitted. Please reconnect wallet to view loan status.');
+      }
     } catch (error: any) {
       console.error('Error creating loan:', error);
       
       // Provide user-friendly error messages for RPC issues
       let errorMessage = 'Unknown error occurred';
       
-      if (error?.code === -32002 || error?.message?.includes('RPC endpoint returned too many errors')) {
+      // Check if transaction was submitted but confirmation failed
+      if (txHash) {
+        errorMessage = `Transaction submitted (${txHash.slice(0, 10)}...) but confirmation failed. `;
+        errorMessage += 'Please check your wallet for transaction status. ';
+        if (error?.message) {
+          errorMessage += `Error: ${error.message}`;
+        }
+      } else if (error?.code === -32002 || error?.message?.includes('RPC endpoint returned too many errors')) {
         errorMessage = 'The blockchain RPC endpoint is currently experiencing issues. Please wait a moment and try again. If the problem persists, try:\n\n1. Refreshing the page\n2. Checking your internet connection\n3. Switching to a different RPC endpoint in MetaMask';
       } else if (error?.code === 'UNKNOWN_ERROR' || error?.message?.includes('could not coalesce')) {
         errorMessage = 'Network error: Unable to connect to the blockchain. The RPC endpoint may be temporarily unavailable. Please try again in a few moments.';
+      } else if (error?.code === 4001) {
+        errorMessage = 'Transaction rejected by user.';
       } else if (error?.reason) {
         errorMessage = error.reason;
       } else if (error?.message) {

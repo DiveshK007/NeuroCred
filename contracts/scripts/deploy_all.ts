@@ -129,7 +129,11 @@ async function main() {
     console.log(`      NEXT_PUBLIC_DEMO_LENDER_ADDRESS=${lenderAddress}`);
     console.log(`      NEXT_PUBLIC_LENDING_VAULT_ADDRESS=${vaultAddress}`);
     console.log("\n   3. View on explorer:");
-    const explorerUrl = `https://testnet.qie.digital/address/${passportAddress}`;
+    // Use network config for explorer URL
+    const network = await ethers.provider.getNetwork();
+    const explorerUrl = network.chainId === 1990n 
+      ? `https://mainnet.qie.digital/address/${passportAddress}`
+      : `https://testnet.qie.digital/address/${passportAddress}`;
     console.log(`      ${explorerUrl}`);
     console.log("\n" + "=".repeat(60));
 

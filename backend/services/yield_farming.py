@@ -4,6 +4,7 @@ Yield farming service for yield farming protocol integration
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 from utils.logger import get_logger
+from config.network import get_network_config
 
 logger = get_logger(__name__)
 
@@ -11,47 +12,54 @@ logger = get_logger(__name__)
 class YieldFarmingService:
     """Service for yield farming protocol integration"""
     
-    # Supported protocols (placeholder data)
-    SUPPORTED_PROTOCOLS = [
-        {
-            "id": "qie_yield",
-            "name": "QIE Yield Protocol",
-            "chain_id": 1983,
-            "pools": [
-                {
-                    "id": "qie_usdt",
-                    "name": "QIE/USDT Pool",
-                    "token0": "QIE",
-                    "token1": "USDT",
-                    "apy": 15.0,
-                    "min_deposit": 100,
-                },
-                {
-                    "id": "qie_usdc",
-                    "name": "QIE/USDC Pool",
-                    "token0": "QIE",
-                    "token1": "USDC",
-                    "apy": 14.5,
-                    "min_deposit": 100,
-                },
-            ],
-        },
-        {
-            "id": "liquidity_pools",
-            "name": "Liquidity Pools",
-            "chain_id": 1983,
-            "pools": [
-                {
-                    "id": "lp_qie_eth",
-                    "name": "QIE/ETH LP",
-                    "token0": "QIE",
-                    "token1": "ETH",
-                    "apy": 20.0,
-                    "min_deposit": 500,
-                },
-            ],
-        },
-    ]
+    def __init__(self):
+        """Initialize with network-aware chain ID"""
+        self.network_config = get_network_config()
+    
+    def get_supported_protocols(self) -> List[Dict[str, Any]]:
+        """Get supported protocols with network-aware chain ID"""
+        # Supported protocols (placeholder data) - uses active network chain ID
+        chain_id = self.network_config.chain_id
+        return [
+            {
+                "id": "qie_yield",
+                "name": "QIE Yield Protocol",
+                "chain_id": chain_id,
+                "pools": [
+                    {
+                        "id": "qie_usdt",
+                        "name": "QIE/USDT Pool",
+                        "token0": "QIE",
+                        "token1": "USDT",
+                        "apy": 15.0,
+                        "min_deposit": 100,
+                    },
+                    {
+                        "id": "qie_usdc",
+                        "name": "QIE/USDC Pool",
+                        "token0": "QIE",
+                        "token1": "USDC",
+                        "apy": 14.5,
+                        "min_deposit": 100,
+                    },
+                ],
+            },
+            {
+                "id": "liquidity_pools",
+                "name": "Liquidity Pools",
+                "chain_id": chain_id,
+                "pools": [
+                    {
+                        "id": "lp_qie_eth",
+                        "name": "QIE/ETH LP",
+                        "token0": "QIE",
+                        "token1": "ETH",
+                        "apy": 20.0,
+                        "min_deposit": 500,
+                    },
+                ],
+            },
+        ]
     
     async def get_protocols(self) -> List[Dict[str, Any]]:
         """
@@ -68,7 +76,7 @@ class YieldFarmingService:
                     "chain_id": p["chain_id"],
                     "pool_count": len(p.get("pools", [])),
                 }
-                for p in self.SUPPORTED_PROTOCOLS
+                for p in self.get_supported_protocols()
             ]
         except Exception as e:
             logger.error(f"Error getting protocols: {e}", exc_info=True)
@@ -89,7 +97,7 @@ class YieldFarmingService:
         """
         try:
             protocol_info = next(
-                (p for p in self.SUPPORTED_PROTOCOLS if p["id"] == protocol),
+                (p for p in self.get_supported_protocols() if p["id"] == protocol),
                 None
             )
             
@@ -116,7 +124,7 @@ class YieldFarmingService:
         """
         try:
             # Find pool
-            for protocol in self.SUPPORTED_PROTOCOLS:
+            for protocol in self.get_supported_protocols():
                 pool = next(
                     (p for p in protocol.get("pools", []) if p["id"] == pool_id),
                     None
@@ -151,7 +159,7 @@ class YieldFarmingService:
         try:
             # Find pool
             pool_info = None
-            for protocol in self.SUPPORTED_PROTOCOLS:
+            for protocol in self.get_supported_protocols():
                 pool = next(
                     (p for p in protocol.get("pools", []) if p["id"] == pool_id),
                     None

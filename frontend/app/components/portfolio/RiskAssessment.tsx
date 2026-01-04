@@ -4,11 +4,11 @@ import { usePortfolio } from '@/app/hooks/usePortfolio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 
 export function RiskAssessment() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { riskAssessment, isLoading, error } = usePortfolio(address);
 
   if (isLoading) {

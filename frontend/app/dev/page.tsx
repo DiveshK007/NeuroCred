@@ -23,7 +23,9 @@ const CONTRACT_ABI = [
 
 // Get score for a user
 async function getCreditScore(userAddress: string) {
-  const provider = new ethers.JsonRpcProvider('https://testnet.qie.digital');
+  // Use network config for RPC URL
+  const rpcUrl = process.env.NEXT_PUBLIC_QIE_TESTNET_RPC_URL || 'https://rpc1testnet.qie.digital/';
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
   
   const [score, riskBand, lastUpdated] = await contract.getScore(userAddress);

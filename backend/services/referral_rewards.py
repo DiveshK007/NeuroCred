@@ -249,7 +249,7 @@ class ReferralRewardsService:
             
             # Check metadata for milestone score
             for reward in existing_rewards:
-                metadata = reward.metadata or {}
+                metadata = reward.extra_metadata or {}
                 if metadata.get('milestone_score') == milestone_score:
                     return Decimal('0')  # Already rewarded
             
@@ -393,7 +393,7 @@ class ReferralRewardsService:
                     "amount_ncrd": float(reward.amount_ncrd),
                     "status": reward.status,
                     "created_at": reward.created_at.isoformat() if reward.created_at else None,
-                    "metadata": reward.metadata or {},
+                    "metadata": reward.extra_metadata or {},
                 }
                 for reward in rewards
             ]

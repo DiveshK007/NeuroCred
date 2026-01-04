@@ -70,14 +70,26 @@ class LoanOfferSigner:
                     self.can_sign = False
                     self.account = None
         
-        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
+        # Use centralized network configuration
+        from config.network import get_network_config, get_healthy_rpc_urls
+        self.network_config = get_network_config()
+        healthy_rpcs = get_healthy_rpc_urls(self.network_config)
+        self.rpc_url = healthy_rpcs[0] if healthy_rpcs else self.network_config.get_primary_rpc()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         
-        # Get chain ID
+        # Get chain ID from network config (with fallback to RPC)
         try:
             self.chain_id = self.w3.eth.chain_id
+            # Verify chain ID matches config
+            if self.chain_id != self.network_config.chain_id:
+                from utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.warning(
+                    f"Chain ID mismatch: RPC returned {self.chain_id}, config expects {self.network_config.chain_id}"
+                )
         except:
-            self.chain_id = 1983  # QIE Testnet chain ID
+            # Fallback to config chain ID
+            self.chain_id = self.network_config.chain_id
     
     def get_domain_separator(self, contract_address: str) -> Dict:
         """Get EIP-712 domain separator"""

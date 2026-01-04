@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { ethers } from 'ethers';
 import { getApiUrl } from '@/lib/api';
 
 interface Message {
@@ -104,11 +105,29 @@ export default function ChatConsole({ address }: ChatConsoleProps) {
   const formatOffer = (offer: any) => {
     if (!offer) return null;
     
+    // Safely convert BigInt values to readable format
+    const formatAmount = (value: any): string => {
+      if (!value) return '0.00';
+      try {
+        // Handle BigInt, string, or number
+        const bigIntValue = typeof value === 'bigint' 
+          ? value 
+          : typeof value === 'string' 
+            ? BigInt(value) 
+            : BigInt(String(value));
+        // Use ethers to format (handles BigInt correctly)
+        return parseFloat(ethers.formatEther(bigIntValue)).toFixed(2);
+      } catch (error) {
+        console.error('Error formatting amount:', error);
+        return '0.00';
+      }
+    };
+    
     return {
-      amount: (offer.amount / 1e18).toFixed(2),
-      collateral: (offer.collateralAmount / 1e18).toFixed(2),
-      rate: (offer.interestRate / 100).toFixed(2),
-      duration: Math.floor(offer.duration / (24 * 60 * 60)),
+      amount: formatAmount(offer.amount),
+      collateral: formatAmount(offer.collateralAmount),
+      rate: (Number(offer.interestRate || 0) / 100).toFixed(2),
+      duration: Math.floor(Number(offer.duration || 0) / (24 * 60 * 60)),
     };
   };
 

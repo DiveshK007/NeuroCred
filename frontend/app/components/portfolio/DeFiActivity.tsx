@@ -3,11 +3,12 @@
 import { usePortfolio } from '@/app/hooks/usePortfolio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { Loader2, ExternalLink } from 'lucide-react';
+import { getExplorerAddressUrl } from '@/lib/config/network';
 
 export function DeFiActivity() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { defiActivity, isLoading, error } = usePortfolio(address);
 
   if (isLoading) {
@@ -78,7 +79,7 @@ export function DeFiActivity() {
                   <h3 className="font-semibold">{protocol.protocol}</h3>
                   {protocol.contract_address && (
                     <a
-                      href={`https://testnet.qie.digital/address/${protocol.contract_address}`}
+                      href={getExplorerAddressUrl(protocol.contract_address)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline"

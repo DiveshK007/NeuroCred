@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { motion } from "framer-motion";
 import { useWallet } from "@/contexts/WalletContext";
+import { NetworkIndicator } from "@/app/components/ui/NetworkIndicator";
 
 interface LayoutProps {
   children: ReactNode;
@@ -82,6 +83,10 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main className="ml-[72px] min-h-screen relative z-10">
+        {/* Network Indicator - Fixed at top */}
+        <div className="fixed top-4 right-4 z-50">
+          <NetworkIndicator />
+        </div>
         {children}
       </main>
     </div>

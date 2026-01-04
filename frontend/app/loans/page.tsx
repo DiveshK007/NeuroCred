@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { LoanList } from '@/app/components/loans/LoanList';
 import { RepaymentSchedule } from '@/app/components/loans/RepaymentSchedule';
 import { EarlyRepaymentCalculator } from '@/app/components/loans/EarlyRepaymentCalculator';
@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { DollarSign, Percent, Calendar, AlertCircle } from 'lucide-react';
 
 export default function LoansPage() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { loans: allLoans } = useLoans(address);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 

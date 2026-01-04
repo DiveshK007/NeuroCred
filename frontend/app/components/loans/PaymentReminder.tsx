@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import { format, differenceInDays, isPast, isToday } from 'date-fns';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { NotificationService } from '@/app/lib/notifications';
 import Link from 'next/link';
 
 export function PaymentReminder() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { loans } = useLoans(address, 'active');
   const [upcomingPayments, setUpcomingPayments] = useState<Loan[]>([]);
   const [overduePayments, setOverduePayments] = useState<Loan[]>([]);

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from services.scoring import ScoringService
 from services.blockchain import BlockchainService
 from services.gdpr import GDPRService
+from database.models import APIAccess
 from middleware.security_headers import SecurityHeadersMiddleware
 from middleware.auth import get_current_user
 from middleware.rate_limit import limiter
@@ -178,17 +179,23 @@ def validate_environment():
                 f"Contains non-hexadecimal characters. Error: {str(e)}"
             )
     
-    # Check RPC URL
-    rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL")
-    if not rpc_url:
-        missing_vars.append("QIE_RPC_URL (or QIE_TESTNET_RPC_URL)")
-    else:
-        # Validate RPC URL format
-        if not rpc_url.startswith("http://") and not rpc_url.startswith("https://"):
-            raise ValueError(
-                f"Invalid RPC URL format: {rpc_url}. "
-                "Must start with http:// or https://"
-            )
+    # Check RPC URL (using network config)
+    from config.network import get_network_config
+    try:
+        network_config = get_network_config()
+        rpc_url = network_config.get_primary_rpc()
+        if not rpc_url:
+            missing_vars.append("QIE_RPC_URL (or network config)")
+        else:
+            # Validate RPC URL format
+            if not rpc_url.startswith("http://") and not rpc_url.startswith("https://"):
+                raise ValueError(
+                    f"Invalid RPC URL format: {rpc_url}. "
+                    "Must start with http:// or https://"
+                )
+    except Exception as e:
+        logger.warning(f"Error getting network config: {e}")
+        missing_vars.append("QIE_NETWORK or QIE_RPC_URL")
     
     if missing_vars:
         error_msg = (
@@ -204,6 +211,9 @@ def validate_environment():
 # Run validation before initializing services
 try:
     validate_environment()
+    # Also run env schema validation
+    from config.env import validate_env_on_startup
+    validate_env_on_startup()
 except ValueError as e:
     logger.error(f"Environment validation failed: {e}")
     raise
@@ -415,8 +425,10 @@ async def generate_score(
         # Log successful score generation
         log_score_generation(request, score_request.address, result["score"], "success")
         
-        # Construct explorer URL if tx_hash exists
-        explorer_prefix = os.getenv("QIE_EXPLORER_TX_URL_PREFIX", "https://testnet.qie.digital/tx")
+        # Construct explorer URL if tx_hash exists (using network config)
+        from config.network import get_network_config
+        network_config = get_network_config()
+        explorer_prefix = f"{network_config.explorer_url}/tx"
         tx_url = f"{explorer_prefix}/{tx_hash}" if tx_hash else None
         
         return ScoreResponse(
@@ -481,7 +493,7 @@ async def get_score_history(
     """
     try:
         from datetime import datetime
-        from database.connection import get_session
+        from database.connection import get_db_session
         from database.repositories import ScoreHistoryRepository
         
         # Validate address
@@ -496,7 +508,7 @@ async def get_score_history(
             end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         
         # Fetch history
-        async with get_session() as session:
+        async with get_db_session() as session:
             history_entries = await ScoreHistoryRepository.get_history(
                 session, address, limit, start_dt, end_dt
             )
@@ -537,14 +549,14 @@ async def get_score_trends(
     """
     try:
         from datetime import datetime, timedelta
-        from database.connection import get_session
+        from database.connection import get_db_session
         from database.repositories import ScoreHistoryRepository, ScoreRepository
         
         # Validate address
         address = validate_ethereum_address(address)
         
         # Get current score
-        async with get_session() as session:
+        async with get_db_session() as session:
             current_score_entry = await ScoreRepository.get_score(session, address)
             current_score = current_score_entry.score if current_score_entry else 0
             
@@ -612,7 +624,7 @@ async def predict_score_change(
     Predict score change based on scenario
     """
     try:
-        from database.connection import get_session
+        from database.connection import get_db_session
         from database.repositories import ScoreRepository
         from services.score_predictor import ScorePredictorService
         
@@ -620,7 +632,7 @@ async def predict_score_change(
         address = validate_ethereum_address(address)
         
         # Get current score
-        async with get_session() as session:
+        async with get_db_session() as session:
             score_entry = await ScoreRepository.get_score(session, address)
             current_score = score_entry.score if score_entry else 500
         
@@ -2567,7 +2579,7 @@ async def download_report(report_id: int, request: Request):
             return {
                 "report_id": report.id,
                 "format": report.format,
-                "metadata": report.metadata,
+                "metadata": report.extra_metadata,
                 "generated_at": report.generated_at.isoformat() if report.generated_at else None,
             }
     except HTTPException:
@@ -2841,7 +2853,7 @@ from middleware.api_auth import require_api_key, get_api_key
 async def get_public_score(
     address: str,
     request: Request,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Get credit score via public API"""
     try:
@@ -2866,15 +2878,15 @@ async def get_public_score_history(
     address: str,
     request: Request,
     limit: int = 30,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Get score history via public API"""
     try:
-        from database.connection import get_session
+        from database.connection import get_db_session
         from database.models import ScoreHistory
         from sqlalchemy import select, desc
         
-        async with get_session() as session:
+        async with get_db_session() as session:
             result = await session.execute(
                 select(ScoreHistory)
                 .where(ScoreHistory.wallet_address == address)
@@ -2903,7 +2915,7 @@ async def get_public_score_history(
 async def get_public_loans(
     address: str,
     request: Request,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Get user loans via public API"""
     try:
@@ -2925,7 +2937,7 @@ async def get_public_loans(
 async def get_public_portfolio(
     address: str,
     request: Request,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Get portfolio data via public API"""
     try:
@@ -2948,7 +2960,7 @@ async def get_public_portfolio(
 @limiter.limit("10/minute")
 async def register_webhook(
     request: Request,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Register webhook"""
     try:
@@ -2982,15 +2994,15 @@ async def register_webhook(
 async def delete_webhook(
     webhook_id: int,
     request: Request,
-    api_key: APIKey = Depends(require_api_key)
+    api_key: APIAccess = Depends(require_api_key)
 ):
     """Delete webhook"""
     try:
-        from database.connection import get_session
+        from database.connection import get_db_session
         from database.models import Webhook
         from sqlalchemy import select
         
-        async with get_session() as session:
+        async with get_db_session() as session:
             result = await session.execute(
                 select(Webhook).where(
                     Webhook.id == webhook_id,

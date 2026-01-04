@@ -4,13 +4,13 @@ import { usePortfolio } from '@/app/hooks/usePortfolio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { Loader2 } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 export function TokenHoldings() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { holdings, isLoading, error } = usePortfolio(address);
 
   if (isLoading) {

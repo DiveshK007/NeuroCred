@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { getExplorerTxUrl, getNetworkConfig } from '@/lib/config/network';
+import { useMainnetWarning } from '@/app/hooks/useMainnetWarning';
 
 const STAKING_ABI = [
   "function stake(uint256 amount) external",
@@ -118,11 +120,53 @@ export default function QIEStaking({ address, provider }: QIEStakingProps) {
     }
   };
 
+  const { requireMainnetConfirmation } = useMainnetWarning();
+
   const handleStake = async () => {
     if (!address || !provider || !stakingAddress || !stakeAmount) return;
 
-    setIsLoading(true);
+    // Verify network before transaction
     try {
+      const network = await provider.getNetwork();
+      const networkConfig = getNetworkConfig();
+      if (network.chainId !== networkConfig.chainId) {
+        throw new Error(`Wrong network! Expected ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}), but connected to Chain ID: ${network.chainId.toString()}.`);
+      }
+    } catch (error: any) {
+      alert(`Network Error: ${error.message}\n\nPlease switch to the correct network before proceeding.`);
+      return;
+    }
+
+    // Require mainnet confirmation
+    const confirmed = await requireMainnetConfirmation(
+      'Stake NCRD tokens',
+      `Amount: ${stakeAmount} NCRD`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    // Prevent double-submission
+    if (isLoading) {
+      console.warn('Transaction already in progress, ignoring duplicate request');
+      return;
+    }
+
+    setIsLoading(true);
+    let txHash: string | null = null;
+    
+    try {
+      // Verify provider is still connected
+      if (!provider || !address) {
+        throw new Error('Wallet disconnected. Please reconnect and try again.');
+      }
+      
+      // Validate stake amount
+      const stakeAmountNum = parseFloat(stakeAmount);
+      if (isNaN(stakeAmountNum) || stakeAmountNum <= 0) {
+        throw new Error('Invalid stake amount. Please enter a positive number.');
+      }
+      
       const signer = await provider.getSigner();
       const stakingContract = new ethers.Contract(stakingAddress, STAKING_ABI, signer);
       const amount = ethers.parseEther(stakeAmount);
@@ -137,14 +181,41 @@ export default function QIEStaking({ address, provider }: QIEStakingProps) {
       }
 
       const tx = await stakingContract.stake(amount);
-      setTxHash(tx.hash);
-      await tx.wait();
+      txHash = tx.hash;
+      setTxHash(txHash);
+      console.log('Stake transaction submitted:', txHash);
+      
+      // Wait for confirmation with timeout (5 minutes)
+      const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      const confirmationPromise = tx.wait();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction confirmation timeout. Check your wallet for transaction status.')), TIMEOUT_MS)
+      );
+      
+      await Promise.race([confirmationPromise, timeoutPromise]);
       
       setStakeAmount('');
-      await loadStakingInfo();
+      // Verify provider is still connected before loading info
+      if (provider && address) {
+        await loadStakingInfo();
+      }
     } catch (error: any) {
       console.error('Error staking:', error);
-      alert(`Error: ${error.message}`);
+      
+      let errorMessage = error?.message || 'Unknown error occurred';
+      
+      // Check if transaction was submitted but confirmation failed
+      if (txHash) {
+        errorMessage = `Transaction submitted (${txHash.slice(0, 10)}...) but confirmation failed. `;
+        errorMessage += 'Please check your wallet for transaction status.';
+        if (error?.message) {
+          errorMessage += ` Error: ${error.message}`;
+        }
+      } else if (error?.code === 4001) {
+        errorMessage = 'Transaction rejected by user.';
+      }
+      
+      alert(`Error staking: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -153,21 +224,88 @@ export default function QIEStaking({ address, provider }: QIEStakingProps) {
   const handleUnstake = async () => {
     if (!address || !provider || !stakingAddress || !unstakeAmount) return;
 
-    setIsLoading(true);
+    // Verify network before transaction
     try {
+      const network = await provider.getNetwork();
+      const networkConfig = getNetworkConfig();
+      if (network.chainId !== networkConfig.chainId) {
+        throw new Error(`Wrong network! Expected ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}), but connected to Chain ID: ${network.chainId.toString()}.`);
+      }
+    } catch (error: any) {
+      alert(`Network Error: ${error.message}\n\nPlease switch to the correct network before proceeding.`);
+      return;
+    }
+
+    // Require mainnet confirmation
+    const confirmed = await requireMainnetConfirmation(
+      'Unstake NCRD tokens',
+      `Amount: ${unstakeAmount} NCRD`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    // Prevent double-submission
+    if (isLoading) {
+      console.warn('Transaction already in progress, ignoring duplicate request');
+      return;
+    }
+
+    setIsLoading(true);
+    let txHash: string | null = null;
+    
+    try {
+      // Verify provider is still connected
+      if (!provider || !address) {
+        throw new Error('Wallet disconnected. Please reconnect and try again.');
+      }
+      
+      // Validate unstake amount
+      const unstakeAmountNum = parseFloat(unstakeAmount);
+      if (isNaN(unstakeAmountNum) || unstakeAmountNum <= 0) {
+        throw new Error('Invalid unstake amount. Please enter a positive number.');
+      }
+      
       const signer = await provider.getSigner();
       const stakingContract = new ethers.Contract(stakingAddress, STAKING_ABI, signer);
       const amount = ethers.parseEther(unstakeAmount);
 
       const tx = await stakingContract.unstake(amount);
-      setTxHash(tx.hash);
-      await tx.wait();
+      txHash = tx.hash;
+      setTxHash(txHash);
+      console.log('Unstake transaction submitted:', txHash);
+      
+      // Wait for confirmation with timeout (5 minutes)
+      const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      const confirmationPromise = tx.wait();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction confirmation timeout. Check your wallet for transaction status.')), TIMEOUT_MS)
+      );
+      
+      await Promise.race([confirmationPromise, timeoutPromise]);
       
       setUnstakeAmount('');
-      await loadStakingInfo();
+      // Verify provider is still connected before loading info
+      if (provider && address) {
+        await loadStakingInfo();
+      }
     } catch (error: any) {
       console.error('Error unstaking:', error);
-      alert(`Error: ${error.message}`);
+      
+      let errorMessage = error?.message || 'Unknown error occurred';
+      
+      // Check if transaction was submitted but confirmation failed
+      if (txHash) {
+        errorMessage = `Transaction submitted (${txHash.slice(0, 10)}...) but confirmation failed. `;
+        errorMessage += 'Please check your wallet for transaction status.';
+        if (error?.message) {
+          errorMessage += ` Error: ${error.message}`;
+        }
+      } else if (error?.code === 4001) {
+        errorMessage = 'Transaction rejected by user.';
+      }
+      
+      alert(`Error unstaking: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -358,7 +496,7 @@ NEXT_PUBLIC_NCRD_TOKEN_ADDRESS=0xYourNCRDTokenAddress`}
         <div className="glass rounded-lg p-4 border border-green-500/30 animate-fade-in">
           <p className="text-sm text-green-400">
             Transaction: <a 
-              href={`${process.env.NEXT_PUBLIC_EXPLORER_TX_URL_PREFIX || 'https://testnet.qie.digital/tx'}/${txHash}`} 
+              href={getExplorerTxUrl(txHash)} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="underline hover:text-green-300"

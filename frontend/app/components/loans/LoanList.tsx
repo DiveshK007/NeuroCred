@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { ArrowRight, Calendar, DollarSign, Percent } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,7 +15,7 @@ interface LoanListProps {
 }
 
 export function LoanList({ status, onLoanSelect }: LoanListProps) {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { loans, isLoading, error } = useLoans(address, status);
 
   if (isLoading) {

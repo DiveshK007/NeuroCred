@@ -9,6 +9,7 @@ from web3 import Web3
 from eth_account import Account
 from dotenv import load_dotenv
 from utils.logger import get_logger
+from config.network import get_network_config, get_healthy_rpc_urls
 
 load_dotenv()
 
@@ -19,7 +20,10 @@ class LoanService:
     """Service for loan management and calculations"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
+        # Use centralized network configuration
+        self.network_config = get_network_config()
+        healthy_rpcs = get_healthy_rpc_urls(self.network_config)
+        self.rpc_url = healthy_rpcs[0] if healthy_rpcs else self.network_config.get_primary_rpc()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         self.lending_vault_address = os.getenv("LENDING_VAULT_ADDRESS")
         

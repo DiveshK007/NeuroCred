@@ -245,7 +245,7 @@ class BadgeService:
                     "issuer": badge.issuer,
                     "score_boost": badge.score_boost,
                     "expires_at": badge.expires_at.isoformat() if badge.expires_at else None,
-                    "metadata": badge.metadata or {},
+                    "metadata": badge.extra_metadata or {},
                     "created_at": badge.created_at.isoformat() if badge.created_at else None,
                 }
                 for badge in badges

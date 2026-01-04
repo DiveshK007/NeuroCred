@@ -22,6 +22,11 @@ const config: HardhatUserConfig = {
       chainId: parseInt(process.env.QIE_TESTNET_CHAIN_ID || "1983"),
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+    qieMainnet: {
+      url: process.env.QIE_MAINNET_RPC_URL || "https://rpc1mainnet.qie.digital/",
+      chainId: parseInt(process.env.QIE_MAINNET_CHAIN_ID || "1990"),
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
     hardhat: {
       chainId: 1337,
     },
@@ -54,6 +59,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://testnet.qie.digital/api",
           browserURL: "https://testnet.qie.digital"
+        }
+      },
+      {
+        network: "qieMainnet",
+        chainId: parseInt(process.env.QIE_MAINNET_CHAIN_ID || "1990"),
+        urls: {
+          apiURL: "https://mainnet.qie.digital/api",
+          browserURL: "https://mainnet.qie.digital/"
         }
       }
     ]

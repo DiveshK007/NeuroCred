@@ -320,7 +320,7 @@ class GovernanceTracker:
                     "proposal_id": activity.proposal_id,
                     "tx_hash": activity.tx_hash,
                     "timestamp": activity.timestamp.isoformat() if activity.timestamp else None,
-                    "metadata": activity.metadata or {},
+                    "metadata": activity.extra_metadata or {},
                 }
                 for activity in activities
             ]

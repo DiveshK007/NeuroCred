@@ -1,6 +1,6 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { TokenHoldings } from '@/app/components/portfolio/TokenHoldings';
 import { TransactionHistory } from '@/app/components/portfolio/TransactionHistory';
 import { TransactionChart } from '@/app/components/portfolio/TransactionChart';
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function PortfolioPage() {
-  const { address } = useAccount();
+  const { address } = useWallet();
 
   if (!address) {
     return (

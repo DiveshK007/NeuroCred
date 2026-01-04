@@ -5,11 +5,11 @@ import { usePortfolio } from '@/app/hooks/usePortfolio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, parseISO, startOfDay } from 'date-fns';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { Loader2 } from 'lucide-react';
 
 export function TransactionChart() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { transactions, isLoading, error } = usePortfolio(address);
 
   const chartData = useMemo(() => {

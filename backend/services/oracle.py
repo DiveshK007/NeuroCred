@@ -3,6 +3,7 @@ from typing import Dict, Optional
 from web3 import Web3
 import requests
 from dotenv import load_dotenv
+from config.network import get_network_config, get_healthy_rpc_urls
 
 load_dotenv()
 
@@ -10,7 +11,10 @@ class QIEOracleService:
     """Service for interacting with QIE Oracles"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
+        # Use centralized network configuration
+        self.network_config = get_network_config()
+        healthy_rpcs = get_healthy_rpc_urls(self.network_config)
+        self.rpc_url = healthy_rpcs[0] if healthy_rpcs else self.network_config.get_primary_rpc()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         # QIE has 7 oracles - these are example addresses (update with actual QIE oracle addresses)
         self.oracle_addresses = {

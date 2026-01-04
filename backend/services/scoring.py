@@ -7,14 +7,18 @@ from models.score import WalletFeatures, ScoreResult
 from services.oracle import QIEOracleService
 from services.staking import StakingService
 from utils.metrics import record_score_computation
+from config.network import get_network_config, get_healthy_rpc_urls
 
 class ScoringService:
     """AI-powered credit scoring service"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
+        # Use centralized network configuration
+        self.network_config = get_network_config()
+        healthy_rpcs = get_healthy_rpc_urls(self.network_config)
+        self.rpc_url = healthy_rpcs[0] if healthy_rpcs else self.network_config.get_primary_rpc()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
-        self.explorer_url = os.getenv("QIE_EXPLORER_URL", "https://testnet.qie.digital")
+        self.explorer_url = self.network_config.explorer_url
         self.oracle_service = QIEOracleService()
         self.staking_service = StakingService()
     

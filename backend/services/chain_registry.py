@@ -4,6 +4,7 @@ Chain registry service for managing supported blockchain networks
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from utils.logger import get_logger
+from config.network import get_network_config, QIE_TESTNET_CONFIG, QIE_MAINNET_CONFIG
 
 logger = get_logger(__name__)
 
@@ -22,25 +23,44 @@ class ChainInfo:
 class ChainRegistry:
     """Registry for managing supported blockchain networks"""
     
-    # QIE Testnet configuration
-    QIE_TESTNET = ChainInfo(
-        chain_id=1983,
-        name="QIE Testnet",
-        rpc_url="https://rpc1testnet.qie.digital/",
-        explorer_url="https://testnet.qie.digital",
-        native_currency="QIE",
-        enabled=True
-    )
+    # QIE Testnet configuration (uses centralized network config)
+    @staticmethod
+    def _get_qie_testnet() -> ChainInfo:
+        """Get QIE Testnet config from centralized network config"""
+        config = QIE_TESTNET_CONFIG
+        return ChainInfo(
+            chain_id=config.chain_id,
+            name=config.name,
+            rpc_url=config.get_primary_rpc(),
+            explorer_url=config.explorer_url,
+            native_currency=config.native_currency,
+            enabled=True
+        )
     
-    # QIE Mainnet (placeholder for future)
-    QIE_MAINNET = ChainInfo(
-        chain_id=1984,  # Placeholder - update with actual mainnet chain ID
-        name="QIE Mainnet",
-        rpc_url="https://rpc.qie.digital/",  # Placeholder
-        explorer_url="https://qie.digital",
-        native_currency="QIE",
-        enabled=False  # Disabled until mainnet launch
-    )
+    # QIE Mainnet configuration (uses centralized network config)
+    @staticmethod
+    def _get_qie_mainnet() -> ChainInfo:
+        """Get QIE Mainnet config from centralized network config"""
+        config = QIE_MAINNET_CONFIG
+        return ChainInfo(
+            chain_id=config.chain_id,
+            name=config.name,
+            rpc_url=config.get_primary_rpc(),
+            explorer_url=config.explorer_url,
+            native_currency=config.native_currency,
+            enabled=True
+        )
+    
+    # Lazy initialization to use network config
+    @property
+    def QIE_TESTNET(self) -> ChainInfo:
+        """QIE Testnet configuration"""
+        return self._get_qie_testnet()
+    
+    @property
+    def QIE_MAINNET(self) -> ChainInfo:
+        """QIE Mainnet configuration"""
+        return self._get_qie_mainnet()
     
     # Common EVM chains (for future extensibility)
     ETHEREUM_MAINNET = ChainInfo(
@@ -90,9 +110,13 @@ class ChainRegistry:
     
     def __init__(self):
         """Initialize chain registry"""
+        # Initialize QIE chains from network config
+        qie_testnet = self._get_qie_testnet()
+        qie_mainnet = self._get_qie_mainnet()
+        
         self._chains: Dict[int, ChainInfo] = {
-            self.QIE_TESTNET.chain_id: self.QIE_TESTNET,
-            self.QIE_MAINNET.chain_id: self.QIE_MAINNET,
+            qie_testnet.chain_id: qie_testnet,
+            qie_mainnet.chain_id: qie_mainnet,
             self.ETHEREUM_MAINNET.chain_id: self.ETHEREUM_MAINNET,
             self.POLYGON_MAINNET.chain_id: self.POLYGON_MAINNET,
             self.BSC_MAINNET.chain_id: self.BSC_MAINNET,
@@ -173,10 +197,14 @@ class ChainRegistry:
     
     def get_default_chain(self) -> ChainInfo:
         """
-        Get default chain (QIE Testnet)
+        Get default chain (uses active network config)
         
         Returns:
-            Default ChainInfo
+            Default ChainInfo based on QIE_NETWORK env var
         """
-        return self.QIE_TESTNET
+        network_config = get_network_config()
+        if network_config.is_mainnet:
+            return self._get_qie_mainnet()
+        else:
+            return self._get_qie_testnet()
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { getApiUrl } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
@@ -20,7 +20,7 @@ interface PredictionResult {
 }
 
 export function ScorePredictor() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [scenario, setScenario] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [tier, setTier] = useState<string>('');

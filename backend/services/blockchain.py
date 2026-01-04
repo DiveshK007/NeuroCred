@@ -4,6 +4,7 @@ from web3 import Web3
 from eth_account import Account
 from typing import Dict, Optional
 from dotenv import load_dotenv
+from config.network import get_network_config, get_healthy_rpc_urls
 
 load_dotenv()
 
@@ -11,7 +12,11 @@ class BlockchainService:
     """Service for interacting with QIE blockchain"""
     
     def __init__(self):
-        self.rpc_url = os.getenv("QIE_RPC_URL") or os.getenv("QIE_TESTNET_RPC_URL", "https://rpc1testnet.qie.digital/")
+        # Use centralized network configuration
+        self.network_config = get_network_config()
+        # Get healthy RPC URLs with failover support
+        healthy_rpcs = get_healthy_rpc_urls(self.network_config)
+        self.rpc_url = healthy_rpcs[0] if healthy_rpcs else self.network_config.get_primary_rpc()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         # Accept both CREDIT_PASSPORT_NFT_ADDRESS and CREDIT_PASSPORT_ADDRESS for backward compatibility
         self.contract_address = os.getenv("CREDIT_PASSPORT_NFT_ADDRESS") or os.getenv("CREDIT_PASSPORT_ADDRESS")
@@ -146,11 +151,86 @@ class BlockchainService:
             logger.error(f"Error getting score from blockchain: {e}", exc_info=True)
             return None
     
+    def _verify_mainnet_safety(self) -> None:
+        """Verify we're ready for mainnet transaction"""
+        if not self.network_config.is_mainnet:
+            return  # No checks needed for testnet
+        
+        from utils.logger import get_logger
+        logger = get_logger(__name__)
+        
+        # Check if mainnet transactions are allowed
+        allow_mainnet = os.getenv("ALLOW_MAINNET_TRANSACTIONS", "false").lower() == "true"
+        if not allow_mainnet:
+            error_msg = "Mainnet transactions are disabled. Set ALLOW_MAINNET_TRANSACTIONS=true to enable."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # Check balance
+        balance = self.w3.eth.get_balance(self.account.address)
+        min_balance_wei = self.w3.to_wei(0.1, 'ether')  # Minimum 0.1 QIEV3
+        if balance < min_balance_wei:
+            error_msg = f"Insufficient balance for mainnet transaction. Required: {self.w3.from_wei(min_balance_wei, 'ether')} QIEV3, Available: {self.w3.from_wei(balance, 'ether')} QIEV3"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # Log mainnet transaction attempt
+        logger.warning(
+            "Mainnet transaction attempt",
+            extra={
+                "address": self.account.address,
+                "balance": str(balance),
+                "balance_qiev3": self.w3.from_wei(balance, 'ether')
+            }
+        )
+    
     async def update_score(self, address: str, score: int, risk_band: int) -> str:
-        """Update score on blockchain"""
+        """Update score on blockchain with mainnet safeguards"""
         start_time = time.time()
         try:
+            # Verify mainnet safety before proceeding
+            self._verify_mainnet_safety()
+            
             checksum_address = Web3.to_checksum_address(address)
+            
+            # Mainnet-specific safeguards
+            gas_limit = 200000
+            max_gas_price_gwei = 100  # Maximum gas price in Gwei for mainnet
+            
+            # Get current gas price
+            current_gas_price = self.w3.eth.gas_price
+            
+            if self.network_config.is_mainnet:
+                gas_price_gwei = current_gas_price / 1e9
+                
+                if gas_price_gwei > max_gas_price_gwei:
+                    from utils.logger import get_logger
+                    logger = get_logger(__name__)
+                    logger.warning(
+                        f"Gas price too high for mainnet: {gas_price_gwei:.2f} Gwei (max: {max_gas_price_gwei} Gwei)",
+                        extra={"gas_price_gwei": gas_price_gwei, "max_gas_price_gwei": max_gas_price_gwei}
+                    )
+                    # Use max gas price instead
+                    current_gas_price = int(max_gas_price_gwei * 1e9)
+                
+                # Estimate gas before building transaction (for mainnet safety)
+                try:
+                    estimated_gas = self.contract.functions.mintOrUpdate(
+                        checksum_address,
+                        score,
+                        risk_band
+                    ).estimate_gas({
+                        'from': self.account.address
+                    })
+                    # Use estimated gas with 20% buffer, but cap at reasonable limit
+                    gas_limit = min(int(estimated_gas * 1.2), 300000)  # Cap at 300k
+                    from utils.logger import get_logger
+                    logger = get_logger(__name__)
+                    logger.info(f"Gas estimated: {estimated_gas}, using: {gas_limit}")
+                except Exception as e:
+                    from utils.logger import get_logger
+                    logger = get_logger(__name__)
+                    logger.warning(f"Gas estimation failed: {e}, using default {gas_limit}")
             
             # Build transaction
             transaction = self.contract.functions.mintOrUpdate(
@@ -160,8 +240,8 @@ class BlockchainService:
             ).build_transaction({
                 'from': self.account.address,
                 'nonce': self.w3.eth.get_transaction_count(self.account.address),
-                'gas': 200000,
-                'gasPrice': self.w3.eth.gas_price,
+                'gas': gas_limit,
+                'gasPrice': current_gas_price,
             })
             
             # Sign transaction
@@ -171,14 +251,45 @@ class BlockchainService:
             raw_tx = getattr(signed_txn, 'raw_transaction', None) or getattr(signed_txn, 'rawTransaction', None)
             tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
-            # Wait for receipt
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            # Wait for receipt with timeout (5 minutes max, more blocks for mainnet)
+            timeout = 300  # 5 minutes
+            required_confirmations = 3 if self.network_config.is_mainnet else 1
+            
+            receipt = self.w3.eth.wait_for_transaction_receipt(
+                tx_hash, 
+                timeout=timeout
+            )
+            
+            # Enhanced logging for mainnet
+            from utils.logger import get_logger
+            logger = get_logger(__name__)
+            if self.network_config.is_mainnet:
+                logger.info(
+                    "Mainnet transaction submitted",
+                    extra={
+                        "tx_hash": receipt.transactionHash.hex(),
+                        "address": address,
+                        "score": score,
+                        "risk_band": risk_band,
+                        "gas_limit": gas_limit,
+                        "gas_price_gwei": (current_gas_price / 1e9),
+                        "gas_used": receipt.gasUsed,
+                    }
+                )
+                
+                # Verify confirmations for mainnet
+                if receipt.blockNumber:
+                    current_block = self.w3.eth.block_number
+                    confirmations = current_block - receipt.blockNumber
+                    if confirmations < required_confirmations:
+                        logger.warning(
+                            f"Insufficient confirmations: {confirmations} < {required_confirmations}",
+                            extra={"tx_hash": receipt.transactionHash.hex(), "confirmations": confirmations}
+                        )
             
             tx_hash_hex = receipt.transactionHash.hex()
             
-            # Log transaction details
-            from utils.logger import get_logger
-            logger = get_logger(__name__)
+            # Log transaction details (logger already defined above)
             transaction_duration = time.time() - start_time
             
             logger.info(

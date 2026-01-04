@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ethers } from 'ethers';
+import { getNetworkConfig, getNetworkConfigForWallet, isMainnet } from '@/lib/config/network';
 
 interface WalletContextType {
   address: string | null;
@@ -9,34 +10,24 @@ interface WalletContextType {
   balance: string;
   isConnected: boolean;
   isConnecting: boolean;
+  isCorrectNetwork: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
   refreshBalance: () => Promise<void>;
+  verifyNetwork: () => Promise<boolean>;
+  switchToNetwork: () => Promise<boolean>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 const WALLET_STORAGE_KEY = 'neurocred_wallet_address';
-const QIE_TESTNET_CHAIN_ID = 1983n; // QIE Testnet chain ID
-const QIE_TESTNET_RPC_URL = 'https://rpc1testnet.qie.digital/';
-const QIE_TESTNET_NAME = 'QIE Testnet';
-const QIE_TESTNET_CURRENCY = 'QIE';
 
-// QIE Testnet network configuration
-const QIE_TESTNET_CONFIG = {
-  chainId: `0x${QIE_TESTNET_CHAIN_ID.toString(16)}`,
-  chainName: QIE_TESTNET_NAME,
-  nativeCurrency: {
-    name: QIE_TESTNET_CURRENCY,
-    symbol: QIE_TESTNET_CURRENCY,
-    decimals: 18,
-  },
-  rpcUrls: [QIE_TESTNET_RPC_URL],
-  blockExplorerUrls: ['https://testnet.qie.digital'],
-};
+// Get network configuration
+const networkConfig = getNetworkConfig();
+const walletConfig = getNetworkConfigForWallet(networkConfig);
 
-// Helper function to switch to QIE Testnet
-const switchToQieTestnet = async (): Promise<boolean> => {
+// Helper function to switch to the configured network
+const switchToNetwork = async (): Promise<boolean> => {
   if (typeof window === 'undefined' || !window.ethereum) {
     return false;
   }
@@ -45,7 +36,7 @@ const switchToQieTestnet = async (): Promise<boolean> => {
     // Try to switch to the network
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: QIE_TESTNET_CONFIG.chainId }],
+      params: [{ chainId: walletConfig.chainId }],
     });
     return true;
   } catch (switchError: any) {
@@ -55,16 +46,16 @@ const switchToQieTestnet = async (): Promise<boolean> => {
         // Add the network
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
-          params: [QIE_TESTNET_CONFIG],
+          params: [walletConfig],
         });
         return true;
       } catch (addError) {
-        console.error('Error adding QIE Testnet:', addError);
-        alert('Failed to add QIE Testnet. Please add it manually in your wallet.');
+        console.error(`Error adding ${networkConfig.name}:`, addError);
+        alert(`Failed to add ${networkConfig.name}. Please add it manually in your wallet.`);
         return false;
       }
     } else {
-      console.error('Error switching to QIE Testnet:', switchError);
+      console.error(`Error switching to ${networkConfig.name}:`, switchError);
       return false;
     }
   }
@@ -74,10 +65,20 @@ const switchToQieTestnet = async (): Promise<boolean> => {
 const checkNetwork = async (provider: ethers.BrowserProvider): Promise<boolean> => {
   try {
     const network = await provider.getNetwork();
-    return network.chainId === QIE_TESTNET_CHAIN_ID;
+    const isCorrect = network.chainId === networkConfig.chainId;
+    return isCorrect;
   } catch (error) {
     console.error('Error checking network:', error);
     return false;
+  }
+};
+
+// Helper function to verify network and throw if wrong (for transaction blocking)
+const verifyNetworkForTransaction = async (provider: ethers.BrowserProvider): Promise<void> => {
+  const network = await provider.getNetwork();
+  if (network.chainId !== networkConfig.chainId) {
+    const errorMessage = `Wrong network! Expected ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}), but connected to Chain ID: ${network.chainId.toString()}. Please switch to ${networkConfig.name} before proceeding.`;
+    throw new Error(errorMessage);
   }
 };
 
@@ -86,6 +87,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [balance, setBalance] = useState<string>('0');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isCorrectNetwork, setIsCorrectNetwork] = useState<boolean>(true);
 
   // Restore connection from localStorage on mount (but don't auto-connect)
   useEffect(() => {
@@ -110,14 +112,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                   console.log('Restored connection to network:', network.chainId.toString());
                   
                   // Check if on correct network
-                  if (network.chainId !== QIE_TESTNET_CHAIN_ID) {
-                    console.warn('Not connected to QIE Testnet. Current chain ID:', network.chainId.toString());
+                  const isCorrect = network.chainId === networkConfig.chainId;
+                  setIsCorrectNetwork(isCorrect);
+                  if (!isCorrect) {
+                    console.warn(`Not connected to ${networkConfig.name}. Current chain ID:`, network.chainId.toString());
                     const shouldSwitch = confirm(
-                      `You are not connected to QIE Testnet (Chain ID: ${QIE_TESTNET_CHAIN_ID}). ` +
-                      `Would you like to switch to QIE Testnet now?`
+                      `You are not connected to ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}). ` +
+                      `Would you like to switch to ${networkConfig.name} now?`
                     );
                     if (shouldSwitch) {
-                      await switchToQieTestnet();
+                      await switchToNetwork();
                       // Reload to get updated provider
                       window.location.reload();
                       return;
@@ -225,21 +229,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const chainIdNum = BigInt(chainId);
         
         // Check if switched to correct network
-        if (chainIdNum === QIE_TESTNET_CHAIN_ID) {
-          console.log('Switched to QIE Testnet successfully');
+        const isCorrect = chainIdNum === networkConfig.chainId;
+        setIsCorrectNetwork(isCorrect);
+        if (isCorrect) {
+          console.log(`Switched to ${networkConfig.name} successfully`);
           // Refresh balance if connected
           if (address && provider) {
             await refreshBalance();
           }
         } else {
-          console.warn('Switched to wrong network. Expected QIE Testnet (1983), got:', chainIdNum.toString());
+          console.warn(`Switched to wrong network. Expected ${networkConfig.name} (${networkConfig.chainId.toString()}), got:`, chainIdNum.toString());
           const shouldSwitch = confirm(
             `You switched to a different network (Chain ID: ${chainIdNum}). ` +
-            `NeuroCred requires QIE Testnet (Chain ID: ${QIE_TESTNET_CHAIN_ID}). ` +
-            `Would you like to switch back to QIE Testnet?`
+            `NeuroCred requires ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}). ` +
+            `Would you like to switch back to ${networkConfig.name}?`
           );
           if (shouldSwitch) {
-            await switchToQieTestnet();
+            await switchToNetwork();
           }
         }
         
@@ -272,27 +278,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const addr = await signer.getAddress();
       
       // Check if on correct network
-      const isCorrectNetwork = await checkNetwork(prov);
-      if (!isCorrectNetwork) {
+      const isCorrect = await checkNetwork(prov);
+      setIsCorrectNetwork(isCorrect);
+      if (!isCorrect) {
         const network = await prov.getNetwork();
         const shouldSwitch = confirm(
-          `You are not connected to QIE Testnet (Chain ID: ${QIE_TESTNET_CHAIN_ID}). ` +
+          `You are not connected to ${networkConfig.name} (Chain ID: ${networkConfig.chainId.toString()}). ` +
           `Current network: Chain ID ${network.chainId}. ` +
-          `Would you like to switch to QIE Testnet now?`
+          `Would you like to switch to ${networkConfig.name} now?`
         );
         if (shouldSwitch) {
-          const switched = await switchToQieTestnet();
+          const switched = await switchToNetwork();
           if (switched) {
             // Reload to get updated provider
             window.location.reload();
             return;
           } else {
-            alert('Failed to switch network. Please switch manually to QIE Testnet.');
+            alert(`Failed to switch network. Please switch manually to ${networkConfig.name}.`);
             setIsConnecting(false);
             return;
           }
         } else {
-          alert('Please switch to QIE Testnet to use NeuroCred.');
+          alert(`Please switch to ${networkConfig.name} to use NeuroCred.`);
           setIsConnecting(false);
           return;
         }
@@ -322,7 +329,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setAddress(null);
     setProvider(null);
     setBalance('0');
+    setIsCorrectNetwork(true);
     localStorage.removeItem(WALLET_STORAGE_KEY);
+  };
+
+  // Verify network before transactions (throws if wrong network)
+  const verifyNetwork = async (): Promise<boolean> => {
+    if (!provider) {
+      throw new Error('Wallet not connected');
+    }
+    try {
+      await verifyNetworkForTransaction(provider);
+      setIsCorrectNetwork(true);
+      return true;
+    } catch (error) {
+      setIsCorrectNetwork(false);
+      throw error;
+    }
+  };
+
+  // Switch to correct network
+  const switchToCorrectNetwork = async (): Promise<boolean> => {
+    const result = await switchToNetwork();
+    if (result && provider) {
+      const isCorrect = await checkNetwork(provider);
+      setIsCorrectNetwork(isCorrect);
+    }
+    return result;
   };
 
   return (
@@ -333,9 +366,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         balance,
         isConnected: address !== null,
         isConnecting,
+        isCorrectNetwork,
         connect,
         disconnect,
         refreshBalance,
+        verifyNetwork,
+        switchToNetwork: switchToCorrectNetwork,
       }}
     >
       {children}

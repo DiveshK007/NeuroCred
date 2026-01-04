@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/app/contexts/WalletContext';
 import { ExternalLink, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { getExplorerTxUrl } from '@/lib/config/network';
 
 export function TransactionHistory() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { transactions, isLoading, error, refetchTransactions } = usePortfolio(address);
   const [searchTerm, setSearchTerm] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState<string>('all');
@@ -127,7 +128,7 @@ export function TransactionHistory() {
                           {tx.tx_hash.slice(0, 8)}...{tx.tx_hash.slice(-6)}
                         </span>
                         <a
-                          href={`https://testnet.qie.digital/tx/${tx.tx_hash}`}
+                          href={getExplorerTxUrl(tx.tx_hash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"

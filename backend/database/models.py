@@ -181,7 +181,7 @@ class Transaction(Base):
     wallet_address = Column(String(42), ForeignKey("users.wallet_address"), nullable=False, index=True)
     tx_hash = Column(String(66), nullable=False, unique=True, index=True)
     tx_type = Column(String(50), nullable=False, index=True)  # native_send, native_receive, erc20_transfer, contract_call, etc.
-    chain_id = Column(Integer, nullable=False, default=1983, index=True)  # QIE testnet default (1983)
+    chain_id = Column(Integer, nullable=False, index=True)  # Chain ID (set from network config)
     chain_name = Column(String(50), nullable=True)  # Human-readable chain name (e.g., "QIE Testnet")
     block_number = Column(Integer, nullable=True, index=True)
     block_timestamp = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -219,7 +219,7 @@ class TokenTransfer(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     tx_hash = Column(String(66), ForeignKey("transactions.tx_hash"), nullable=False, index=True)
-    chain_id = Column(Integer, nullable=False, default=1983, index=True)  # QIE testnet default
+    chain_id = Column(Integer, nullable=False, index=True)  # Chain ID (set from network config)
     token_address = Column(String(42), nullable=False, index=True)
     token_type = Column(String(20), nullable=False)  # ERC20, ERC721
     from_address = Column(String(42), nullable=True, index=True)
@@ -370,7 +370,7 @@ class LoanOffer(Base):
     ltv_ratio = Column(Numeric(5, 2), nullable=True)  # Loan-to-value ratio
     status = Column(String(20), nullable=False, default='active', index=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
-    metadata = Column(JSON, nullable=True)  # Additional terms
+    extra_metadata = Column(JSON, nullable=True)  # Additional terms (renamed from 'metadata' - reserved word)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
@@ -436,7 +436,7 @@ class CollateralPosition(Base):
     ltv_ratio = Column(Numeric(5, 2), nullable=True)  # Current LTV for this position
     health_ratio = Column(Numeric(5, 4), nullable=True)  # Health ratio (0-1)
     last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)  # Additional metadata (renamed from 'metadata' - reserved word)
     
     # Relationships
     loan = relationship("Loan")
@@ -672,7 +672,7 @@ class ReferralReward(Base):
     status = Column(String(20), nullable=False, default='pending', index=True)  # 'pending', 'distributed', 'failed'
     distribution_tx_hash = Column(String(66), nullable=True, index=True)
     distributed_at = Column(DateTime(timezone=True), nullable=True)
-    metadata = Column(JSON, nullable=True)  # Additional reward metadata
+    extra_metadata = Column(JSON, nullable=True)  # Additional metadata (renamed from 'metadata' - reserved word)  # Additional reward metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
@@ -763,7 +763,7 @@ class CreditReport(Base):
     generated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     file_path = Column(String(500), nullable=True)
     file_url = Column(String(500), nullable=True)
-    metadata = Column(JSON, nullable=True)  # Report metadata and data
+    extra_metadata = Column(JSON, nullable=True)  # Additional metadata (renamed from 'metadata' - reserved word)  # Report metadata and data
     
     # Relationships
     user = relationship("User")

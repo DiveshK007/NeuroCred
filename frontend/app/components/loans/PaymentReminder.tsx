@@ -16,6 +16,7 @@ export function PaymentReminder() {
   const { loans } = useLoans(address, 'active');
   const [upcomingPayments, setUpcomingPayments] = useState<Loan[]>([]);
   const [overduePayments, setOverduePayments] = useState<Loan[]>([]);
+  const now = useMemo(() => new Date(), []);
 
   useEffect(() => {
     if (!loans || loans.length === 0) {
@@ -23,8 +24,6 @@ export function PaymentReminder() {
       setOverduePayments([]);
       return;
     }
-
-    const now = useMemo(() => new Date(), []);
     const upcoming: Loan[] = [];
     const overdue: Loan[] = [];
 

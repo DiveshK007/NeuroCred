@@ -112,3 +112,20 @@ export function getTranslation(locale: Locale, key: string): string {
 export function useTranslation(locale: Locale = defaultLocale) {
   return (key: string) => getTranslation(locale, key);
 }
+
+// Client-side locale management
+export const supportedLocales: Locale[] = [...locales];
+
+export function getLocale(): Locale {
+  if (typeof window === 'undefined') return defaultLocale;
+  const stored = localStorage.getItem('locale') as Locale | null;
+  return stored && locales.includes(stored) ? stored : defaultLocale;
+}
+
+export function setLocale(locale: Locale): void {
+  if (typeof window === 'undefined') return;
+  if (locales.includes(locale)) {
+    localStorage.setItem('locale', locale);
+    window.dispatchEvent(new Event('localechange'));
+  }
+}

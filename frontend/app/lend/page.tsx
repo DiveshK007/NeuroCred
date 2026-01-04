@@ -45,7 +45,7 @@ export default function LendPage() {
     } catch (error: any) {
       console.error('Error loading score:', error);
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('Network error: Unable to connect to backend at', API_URL);
+        console.error('Network error: Unable to connect to backend at', getApiUrl());
       }
     }
   };

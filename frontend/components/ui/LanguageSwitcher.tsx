@@ -16,6 +16,7 @@ const localeNames: Record<Locale, string> = {
   es: 'Español',
   fr: 'Français',
   zh: '中文',
+  ja: '日本語',
 };
 
 export function LanguageSwitcher() {

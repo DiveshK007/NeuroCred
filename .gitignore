@@ -92,3 +92,7 @@ backup/
 *.bak
 *.swp
 *~
+
+# Backup files
+*.backup
+.env.backup

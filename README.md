@@ -15,12 +15,22 @@
 
 ## Contracts
 
-- **CreditPassportNFT (Testnet)**: `0x34904952E5269290B783071f1eBba51c22ef6219`
-- **LendingVault (Q-Loan)**: `0xd840f7E97Eb96d4901666f665A443Ea376e5BA32`
-- **DemoLender**: `0x64092BaCdFd01939E6f38C80C9Bf096cB50aa6C2`
-- **NeuroCredStaking**: `0x3E9943694a37d26987C1af36DE169e631b30F153`
+### QIE Mainnet (Production) ✅ LIVE
+
+**Deployed on QIE Mainnet (Chain ID: 1990)**
+
+- **CreditPassportNFT**: [`0xAe6A9CaF9739C661e593979386580d3d14abB502`](https://mainnet.qie.digital/address/0xAe6A9CaF9739C661e593979386580d3d14abB502)
+- **LendingVault**: [`0x36Fda9F9F17ea5c07C0CDE540B220fC0697bBcE3`](https://mainnet.qie.digital/address/0x36Fda9F9F17ea5c07C0CDE540B220fC0697bBcE3)
+- **NeuroCredStaking**: [`0x08DA91C81cebD27d181cA732615379f185FbFb51`](https://mainnet.qie.digital/address/0x08DA91C81cebD27d181cA732615379f185FbFb51)
 - **NCRD Token**: `0x7427734468598674645Aa71Ef651218A9Db2be11`
-- **Explorer**: https://testnet.qie.digital/address/0x34904952E5269290B783071f1eBba51c22ef6219
+- **Mainnet Explorer**: https://mainnet.qie.digital/
+
+### QIE Testnet (Development)
+
+- **CreditPassportNFT**: `0x34904952E5269290B783071f1eBba51c22ef6219`
+- **LendingVault**: `0xd840f7E97Eb96d4901666f665A443Ea376e5BA32`
+- **NeuroCredStaking**: `0x3E9943694a37d26987C1af36DE169e631b30F153`
+- **Testnet Explorer**: https://testnet.qie.digital/
 
 ## QIE Hackathon Requirements
 

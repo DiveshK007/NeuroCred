@@ -527,8 +527,6 @@ To create the NCRD token via QIEDex:
 ![AI Chat](./screenshots/chat.png)
 *Q-Loan AI chat interface for loan negotiation*
 
-![Staking](./screenshots/staking.png)
-*NCRD token staking interface*
 
 ![Explorer Transaction](./screenshots/explorer_tx.png)
 *QIE Explorer showing on-chain transaction*
